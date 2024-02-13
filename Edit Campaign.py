@@ -1,0 +1,9689 @@
+
+strings = """ZXCampaign.dat	1688788812-163327433-2005584771
+             ZXCampaignStrings.dat	-831217260-1747352550571668361
+             ZXRules.dat	1435525863-7828404698500055911435525863-782840469850005591334454FADSFASDF45345
+             ZXStrings.dat	1435525863-7828404698500055911435525863-782840469850005591334454FADSFASDF45345"""
+
+from PIL import Image, ImageDraw
+
+class CampaignWaveEditor:
+  attributes = [
+          "ID", "IDMission", "Name", "Generators", "AttackCommandCenter", "ScaleSwarm",
+          "InfectedWeak", "InfectedMedium", "InfectedDressed", "InfectedStrong",
+          "InfectedVenom", "InfectedHarpy", "InfectedGiant", "InfectedMutant",
+          "GameTime", "GameTimeRandomOffset", "RepeatTime", "MaxRepetitions",
+          "FactorUnitsNumberPerRepetition", "MaxFactorUnitsNumberPerRepetition",
+          "GenerationSpeed", "MaxCellDispersionGeneration", "AutoNotifyPlayer",
+          "ShowAsNextSwarm", "TimeToNotifyInAdvance", "ShowCountdown",
+          "ShowMiniMapIndicator", "AllInfectedToCommandCenter", "FinalSwarm",
+          "GameWon", "GameOver"
+      ]
+  
+  def __init__(self, wave):
+      for i, attr in enumerate(self.attributes, start=1):
+          setattr(self, attr, wave[i].split(",")[0])
+          setattr(self, f"linenumber{attr}", int(wave[i].split(",")[1]))
+
+  def multiple_wave(self,multiplier):
+    self.ScaleSwarm = str(int(round(int(self.ScaleSwarm) *  multiplier)))
+
+  def set_InfectedNumber(self,number,type):
+    if type == "InfectedWeak":
+        self.InfectedWeak = str(number)
+    if type == "InfectedMedium":
+        self.InfectedMedium = str(number)
+    if type == "InfectedDressed":
+        self.InfectedDressed = str(number)
+    if type == "InfectedStrong":
+        self.InfectedStrong = str(number)
+    if type == "InfectedHarpy":
+        self.InfectedHarpy = str(number)
+    if type == "InfectedGiant":
+        self.InfectedGiant = str(number)
+    if type == "InfectedMutant":
+        self.InfectedMutant = str(number)
+
+  def set_game_time(self,time):
+    #time to set in days or hours
+    self.GameTime = time
+
+def recreate_xml(xml_string,waves_list):
+    #1 pull in xml
+    edited_xml =(xml_string)
+    edited_xml = edited_xml.split("\n")
+    #2 go through all variables in each wave
+    for wave in waves_list:
+        for attr in CampaignWaveEditor.attributes:
+          fancystring = str(getattr(wave, attr))
+          fancystringline = int(getattr(wave, "linenumber" + attr))
+          if fancystring != "null":
+              edited_xml[fancystringline-1] = str(edited_xml[fancystringline-1].split('"')[0]) + '"' +fancystring + '" />'
+    edited_xml.pop()
+    with open("C:/Users/Josh/Desktop/MODS/Scripts/Campaign_Mod_Ouput/output", 'w',encoding='utf-8') as file:
+      # Write each string followed by a newline character
+      for string in edited_xml:
+          file.write(f"{string}\n")
+
+def xml_to_csv(xml_string):
+    # Parse the XML string
+    start_point = False
+    Item = {}
+
+    item_indent_count = 0
+    firstline_check = False
+
+    lines = xml_string.split("\n")
+    for line_number, line in enumerate(lines, start=1):
+        if start_point:
+            if "<Item>" in line:
+                item_indent_count += 1
+            if "</Item>" in line:
+                item_indent_count -= 1
+            if item_indent_count == 1 and "Simple value" in line:
+                value = line.split('"')[1]
+                Item[value] = {}
+                rows_var = False
+                while not rows_var:
+                    next_line = lines[line_number]
+                    line_number += 1
+                    if 'Dictionary name="Cols"' in next_line:
+                        Item[value]["Cols"] = []
+                        rows_var = True
+                        rows_var2 = False
+                        while not rows_var2:
+                            next_line_2 = lines[line_number]
+                            line_number += 1
+                            if "Simple value" in next_line_2:
+                                Item[value]["Cols"].append(next_line_2.split('"')[1])
+                            if "</Dictionary>" in next_line_2:
+                                break
+
+                cols_var = False
+                while not cols_var:
+                    next_line = lines[line_number]
+                    line_number += 1
+                    if 'Dictionary name="Rows"' in next_line:
+                        cols_var = True
+                        cols_var2 = False
+                        Item[value]["Rows"] = {}
+                        i = 0
+
+                        while not cols_var2:
+                            next_line_2 = lines[line_number]
+                            line_number += 1
+                            if "<Item>" in next_line_2:
+                                j = 0
+                                Item[value]["Rows"][i] = {}
+                            if "</Item>" in next_line_2:
+                                i += 1
+                            if "Simple value" in next_line_2:
+                                Item[value]["Rows"][i][j] = next_line_2.split('"')[1] + "," + str(line_number)
+                                j += 1
+                            elif "Null" in next_line_2:
+                                Item[value]["Rows"][i][j] = "null" + "," + str(line_number)
+                                j += 1
+                            if "</Dictionary>" in next_line_2:
+                                break
+
+        if 'Dictionary name="Tables"' in line:
+            start_point = True
+
+    allwaves = []
+    for wave in Item["LevelEvents"]["Rows"]:
+      allwaves.append(CampaignWaveEditor(Item["LevelEvents"]["Rows"][wave]))
+
+    for wave in allwaves:
+        wave.multiple_wave(1)
+
+    recreate_xml(xml_string,allwaves)
+
+
+# Example usage:
+xml_string = """
+<Complex name="Root" type="DXVision.DXTableManager, DXVision">
+  <Properties>
+    <Dictionary name="Tables" keyType="System.String, mscorlib" valueType="DXVision.DXTable, DXVision">
+      <Items>
+        <Item>
+          <Simple value="BonusItems" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="PRT" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="NPoints" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="CanGiveEmpirePoints" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="CanGiveResearchPoints" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="IsPickable" />
+                    <Simple value="5" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="BottleBox" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BottleBox" />
+                        <Simple value="15" />
+                        <Simple value="10" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Book" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Book" />
+                        <Simple value="20" />
+                        <Simple value="20" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BookSelf" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BookSelf" />
+                        <Simple value="40" />
+                        <Simple value="20" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Paper" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Paper" />
+                        <Simple value="10" />
+                        <Simple value="20" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Archive" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Archive" />
+                        <Simple value="50" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Cupboard" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Cupboard" />
+                        <Simple value="50" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Blackboard" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Blackboard" />
+                        <Simple value="50" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SafeBox" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SafeBox" />
+                        <Simple value="1000" />
+                        <Simple value="30" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WoodBox" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WoodBox" />
+                        <Simple value="20" />
+                        <Simple value="10" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ArmyBox" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ArmyBox" />
+                        <Simple value="200" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Barrel" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Barrel" />
+                        <Simple value="15" />
+                        <Simple value="10" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RadioDevice" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RadioDevice" />
+                        <Simple value="20" />
+                        <Simple value="20" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ScienceUtil" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ScienceUtil" />
+                        <Simple value="20" />
+                        <Simple value="10" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Relic" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Relic" />
+                        <Simple value="0" />
+                        <Simple value="30" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TechnologyKit" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TechnologyKit" />
+                        <Simple value="0" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ScienceKit" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ScienceKit" />
+                        <Simple value="30" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Jewel" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Jewel" />
+                        <Simple value="0" />
+                        <Simple value="20" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Y" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="BonusItems" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="HeroPerks" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDRestrictedTo" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="Row" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="Col" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="Default" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="Level" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="PerkType" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="Name" />
+                    <Simple value="7" />
+                  </Item>
+                  <Item>
+                    <Simple value="Mods" />
+                    <Simple value="8" />
+                  </Item>
+                  <Item>
+                    <Simple value="Description" />
+                    <Simple value="9" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="1" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="4" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HAAttack Damage +40%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="2" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="AttackRadius" />
+                        <Simple value="Radio de Ataque" />
+                        <Simple value="HAAttack EffectRadius +0,2" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="3" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="3" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HAAttack Damage +50%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="4" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="4" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HAAttack Damage +70%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="5" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="5" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="4" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HA Life +40%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="6" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HA Life +40%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="7" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="7" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HA Life +50%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="8" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="8" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HA Life +60%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="9" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="9" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HA Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="10" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="10" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HA Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="11" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="11" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HA Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="12" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="12" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="5" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HA RunSpeed +20%; HA TimeAniRun -20%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="13" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="13" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HA RunSpeed +20%; HA TimeAniRun -20%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="14" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="14" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="8" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HA RunSpeed +30%; HA TimeAniRun -30%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="15" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="15" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HAAttack ActionRange +1; HA WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="16" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="16" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HAAttack ActionRange +1; HA WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="17" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="17" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HAAttack ActionRange +1; HA WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="18" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="18" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="5" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HAAttack TimePreAction -20%; HAAttack TimeAction -20%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="19" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="19" />
+                        <Simple value="HA" />
+                        <Simple value="2" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HAAttack TimePreAction -20%; HAAttack TimeAction  -20%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="20" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="20" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HAAttack TimePreAction -20%; HAAttack TimeAction -20%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="21" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="21" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="8" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="AttackRadius" />
+                        <Simple value="Radio de Ataque" />
+                        <Simple value="HAAttack EffectRadius +0,2" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="22" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="22" />
+                        <Simple value="HA" />
+                        <Simple value="3" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="LoadSpeed" />
+                        <Simple value="Destreza" />
+                        <Simple value="HAAttack TimeLoad -25%;  HAAttack TimeUnload -25%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="23" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="23" />
+                        <Simple value="HA" />
+                        <Simple value="1" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="LoadSpeed" />
+                        <Simple value="Destreza" />
+                        <Simple value="HAAttack TimeLoad -25%;  HAAttack TimeUnload -25%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="24" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="24" />
+                        <Simple value="HA" />
+                        <Simple value="4" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="LoadSpeed" />
+                        <Simple value="Destreza" />
+                        <Simple value="HAAttack TimeLoad -30%;  HAAttack TimeUnload -30%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="25" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="25" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HBAttack Damage +30%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="26" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="26" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HBAttack Damage +30%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="27" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="27" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HBAttack Damage +40%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="28" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="28" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="Aim" />
+                        <Simple value="Puntería" />
+                        <Simple value="HBAttack Damage +50%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="29" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="29" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="5" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HB Life +30%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="30" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="30" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HB Life +30%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="31" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="31" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HB Life +40%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="32" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="32" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="Strength" />
+                        <Simple value="Fuerza" />
+                        <Simple value="HB Life +50%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="33" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="33" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="5" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HB Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="34" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="34" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HB Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="35" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="35" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Armor" />
+                        <Simple value="Resistencia" />
+                        <Simple value="HB Armor +0,15" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="36" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="36" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="4" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HB RunSpeed +20%; HB TimeAniRun -20%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="37" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="37" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HB RunSpeed +20%; HB TimeAniRun -20%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="38" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="38" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="8" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="Speed" />
+                        <Simple value="Velocidad" />
+                        <Simple value="HB RunSpeed +30%; HB TimeAniRun -30%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="39" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="39" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HBAttack ActionRange +1; HB WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="40" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="40" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HBAttack ActionRange +1; HB WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="41" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="41" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="AttackRange" />
+                        <Simple value="Visión Mejorada" />
+                        <Simple value="HBAttack ActionRange +1; HB WatchRange +1;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="42" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="42" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Silent" />
+                        <Simple value="Silenciosa" />
+                        <Simple value="HBAttack Activity -40%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="43" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="43" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="Silent" />
+                        <Simple value="Silenciosa" />
+                        <Simple value="HBAttack Activity -40%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="44" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="44" />
+                        <Simple value="HB" />
+                        <Simple value="2" />
+                        <Simple value="4" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HBAttack TimePreAction -20%; HBAttack TimeAction -20%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="45" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="45" />
+                        <Simple value="HB" />
+                        <Simple value="1" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HBAttack TimePreAction -20%; HBAttack TimeAction -20%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="46" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="46" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="LoadSpeed" />
+                        <Simple value="Destreza" />
+                        <Simple value="HBAttack TimeLoad -40%;  HBAttack TimeUnload -40%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="47" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="47" />
+                        <Simple value="HB" />
+                        <Simple value="3" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="LoadSpeed" />
+                        <Simple value="Destreza" />
+                        <Simple value="HBAttack TimeLoad -40%;  HBAttack TimeUnload -40%;" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="48" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="48" />
+                        <Simple value="HB" />
+                        <Simple value="4" />
+                        <Simple value="8" />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="AttackSpeed" />
+                        <Simple value="Reflejos Rápidos" />
+                        <Simple value="HBAttack TimePreAction -25%; HBAttack TimeAction -25%" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="HeroPerks" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="LevelEvents" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDMission" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="Name" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="Generators" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="AttackCommandCenter" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="ScaleSwarm" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedWeak" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedMedium" />
+                    <Simple value="7" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedDressed" />
+                    <Simple value="8" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedStrong" />
+                    <Simple value="9" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedVenom" />
+                    <Simple value="10" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedHarpy" />
+                    <Simple value="11" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedGiant" />
+                    <Simple value="12" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectedMutant" />
+                    <Simple value="13" />
+                  </Item>
+                  <Item>
+                    <Simple value="GameTime" />
+                    <Simple value="14" />
+                  </Item>
+                  <Item>
+                    <Simple value="GameTimeRandomOffset" />
+                    <Simple value="15" />
+                  </Item>
+                  <Item>
+                    <Simple value="RepeatTime" />
+                    <Simple value="16" />
+                  </Item>
+                  <Item>
+                    <Simple value="MaxRepetitions" />
+                    <Simple value="17" />
+                  </Item>
+                  <Item>
+                    <Simple value="FactorUnitsNumberPerRepetition" />
+                    <Simple value="18" />
+                  </Item>
+                  <Item>
+                    <Simple value="MaxFactorUnitsNumberPerRepetition" />
+                    <Simple value="19" />
+                  </Item>
+                  <Item>
+                    <Simple value="GenerationSpeed" />
+                    <Simple value="20" />
+                  </Item>
+                  <Item>
+                    <Simple value="MaxCellDispersionGeneration" />
+                    <Simple value="21" />
+                  </Item>
+                  <Item>
+                    <Simple value="AutoNotifyPlayer" />
+                    <Simple value="22" />
+                  </Item>
+                  <Item>
+                    <Simple value="ShowAsNextSwarm" />
+                    <Simple value="23" />
+                  </Item>
+                  <Item>
+                    <Simple value="TimeToNotifyInAdvance" />
+                    <Simple value="24" />
+                  </Item>
+                  <Item>
+                    <Simple value="ShowCountdown" />
+                    <Simple value="25" />
+                  </Item>
+                  <Item>
+                    <Simple value="ShowMiniMapIndicator" />
+                    <Simple value="26" />
+                  </Item>
+                  <Item>
+                    <Simple value="AllInfectedToCommandCenter" />
+                    <Simple value="27" />
+                  </Item>
+                  <Item>
+                    <Simple value="FinalSwarm" />
+                    <Simple value="28" />
+                  </Item>
+                  <Item>
+                    <Simple value="GameWon" />
+                    <Simple value="29" />
+                  </Item>
+                  <Item>
+                    <Simple value="GameOver" />
+                    <Simple value="30" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="6" />
+                        <Simple value="R01" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="7" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="7" />
+                        <Simple value="R01" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="3d" />
+                        <Simple value="3" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="8" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="8" />
+                        <Simple value="R01" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="90" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="20d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="11" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="11" />
+                        <Simple value="R02" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="6" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="12" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="12" />
+                        <Simple value="R02" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Null />
+                        <Simple value="0,25" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="15" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="15" />
+                        <Simple value="R03" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="16" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="16" />
+                        <Simple value="R03" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Null />
+                        <Simple value="0,25" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="19" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="19" />
+                        <Simple value="R04" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="5" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="20" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="20" />
+                        <Simple value="R04" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="5" />
+                        <Simple value="0,5" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="21" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="21" />
+                        <Simple value="R04" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E  | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="18d" />
+                        <Simple value="1d" />
+                        <Simple value="12d" />
+                        <Simple value="4" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="24" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="24" />
+                        <Simple value="R05" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="8" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="25" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="25" />
+                        <Simple value="R05" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="5" />
+                        <Simple value="0,5" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="26" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="26" />
+                        <Simple value="R05" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E" />
+                        <Simple value="Y" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="18d" />
+                        <Simple value="1d" />
+                        <Simple value="14d" />
+                        <Simple value="2" />
+                        <Simple value="2,5" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="27" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="27" />
+                        <Simple value="R05" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E" />
+                        <Simple value="Y" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="48d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="30" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="30" />
+                        <Simple value="R06" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="N &amp; S" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="16" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="31" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="31" />
+                        <Simple value="R06" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="N | S" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="3d" />
+                        <Simple value="8" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="32" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="32" />
+                        <Simple value="R06" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="N | S" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="15d" />
+                        <Simple value="1d" />
+                        <Simple value="10d" />
+                        <Simple value="3" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="33" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="33" />
+                        <Simple value="R06" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="N &amp; S" />
+                        <Simple value="Y" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="45d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="36" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="36" />
+                        <Simple value="R07" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="12" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="37" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="37" />
+                        <Simple value="R07" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="38" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="38" />
+                        <Simple value="R07" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="18d" />
+                        <Simple value="1d" />
+                        <Simple value="12d" />
+                        <Simple value="3" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="39" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="39" />
+                        <Simple value="R07" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="40" />
+                        <Null />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="56d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="42" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="42" />
+                        <Simple value="R08" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="8" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="43" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="43" />
+                        <Simple value="R08" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="18d" />
+                        <Null />
+                        <Simple value="1d" />
+                        <Simple value="24" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="44" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="44" />
+                        <Simple value="R08" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="N" />
+                        <Simple value="Y" />
+                        <Simple value="50" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="40" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="50d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="47" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="47" />
+                        <Simple value="R09" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="8" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="48" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="48" />
+                        <Simple value="R09" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="7" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="53" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="53" />
+                        <Simple value="R10" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="3d" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="54" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="54" />
+                        <Simple value="R10" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="55" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="55" />
+                        <Simple value="R10" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="15" />
+                        <Null />
+                        <Simple value="10" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="15d" />
+                        <Simple value="1d" />
+                        <Simple value="15d" />
+                        <Simple value="3" />
+                        <Simple value="2,5" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="56" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="56" />
+                        <Simple value="R10" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="167" />
+                        <Null />
+                        <Simple value="11" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="61d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="59" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="59" />
+                        <Simple value="R11" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="25" />
+                        <Null />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="40d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="63" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="63" />
+                        <Simple value="R12" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="3d" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="64" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="64" />
+                        <Simple value="R12" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E |N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="9" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="65" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="65" />
+                        <Simple value="R12" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E  |N" />
+                        <Simple value="Y" />
+                        <Simple value="15" />
+                        <Null />
+                        <Simple value="9" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="16d" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="70" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="70" />
+                        <Simple value="R13" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E  &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="2" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="2d" />
+                        <Simple value="5" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="71" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="71" />
+                        <Simple value="R13" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W &amp; E  &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="10d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="12" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="75" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="75" />
+                        <Simple value="R14" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="9" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="76" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="76" />
+                        <Simple value="R14" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="50" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="15d" />
+                        <Simple value="1d" />
+                        <Simple value="15d" />
+                        <Simple value="4" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="77" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="77" />
+                        <Simple value="R14" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="500" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="65d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="81" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="81" />
+                        <Simple value="R15" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="85" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="85" />
+                        <Simple value="R16" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="12" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="86" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="86" />
+                        <Simple value="R16" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="87" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="87" />
+                        <Simple value="R16" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="16d" />
+                        <Simple value="3" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="88" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="88" />
+                        <Simple value="R16" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="91" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="91" />
+                        <Simple value="R17" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="12" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="92" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="92" />
+                        <Simple value="R17" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="93" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="93" />
+                        <Simple value="R17" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="160" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="12d" />
+                        <Simple value="4" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="94" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="94" />
+                        <Simple value="R17" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="25" />
+                        <Null />
+                        <Simple value="179" />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="64d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="97" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="97" />
+                        <Simple value="R18" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="12" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="98" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="98" />
+                        <Simple value="R18" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="99" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="99" />
+                        <Simple value="R18" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | N" />
+                        <Simple value="Y" />
+                        <Simple value="250" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="22d" />
+                        <Simple value="1d" />
+                        <Simple value="14d" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="100" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="100" />
+                        <Simple value="R18" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="20" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="64d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="104" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="104" />
+                        <Simple value="R19" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="E  &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="105" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="105" />
+                        <Simple value="R19" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="11" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="106" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="106" />
+                        <Simple value="R19" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="16d" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="107" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="107" />
+                        <Simple value="R19" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="E &amp; E &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="20" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="64d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="110" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="110" />
+                        <Simple value="R20" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="E  &amp; S &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="111" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="111" />
+                        <Simple value="R20" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="E | S |W" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="11" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="112" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="112" />
+                        <Simple value="R20" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="E | S |W" />
+                        <Simple value="Y" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="15d" />
+                        <Simple value="3" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="113" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="113" />
+                        <Simple value="R20" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="E &amp; S &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="22" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="24" />
+                        <Simple value="62d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="116" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="116" />
+                        <Simple value="R21" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="E  &amp; N &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="4d" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="117" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="117" />
+                        <Simple value="R21" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="E | N |W" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="12" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="118" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="118" />
+                        <Simple value="R21" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="E | N |W" />
+                        <Simple value="Y" />
+                        <Simple value="210" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="15d" />
+                        <Simple value="4" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="119" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="119" />
+                        <Simple value="R21" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="E &amp; N &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="22" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="72d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="124" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="124" />
+                        <Simple value="R22" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="30" />
+                        <Null />
+                        <Simple value="177" />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="72d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="128" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="128" />
+                        <Simple value="REND" />
+                        <Simple value="Roaming Weak Zombies" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="3" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1d" />
+                        <Null />
+                        <Simple value="3d" />
+                        <Simple value="8" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="129" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="129" />
+                        <Simple value="REND" />
+                        <Simple value="Roaming Medium Zombies" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="12d" />
+                        <Null />
+                        <Simple value="5d" />
+                        <Simple value="7" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="0" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="130" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="130" />
+                        <Simple value="REND" />
+                        <Simple value="Medium Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16d" />
+                        <Simple value="1d" />
+                        <Simple value="16d" />
+                        <Simple value="2" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="131" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="131" />
+                        <Simple value="REND" />
+                        <Simple value="Strong Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="5" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="20" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="45d" />
+                        <Simple value="1d" />
+                        <Simple value="16d" />
+                        <Simple value="2" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="8" />
+                        <Simple value="2" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="132" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="132" />
+                        <Simple value="REND" />
+                        <Simple value="Harpy Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="2200" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="70d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="133" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="133" />
+                        <Simple value="REND" />
+                        <Simple value="Venom Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="2600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="78d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="134" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="134" />
+                        <Simple value="REND" />
+                        <Simple value="Mutant Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="50" />
+                        <Simple value="84d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="135" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="135" />
+                        <Simple value="REND" />
+                        <Simple value="Giant Swarm" />
+                        <Simple value="W | E | S |N" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="20" />
+                        <Null />
+                        <Simple value="92d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="12h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="136" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="136" />
+                        <Simple value="REND" />
+                        <Simple value="Final Swarm" />
+                        <Simple value="W &amp; E &amp; S &amp; N" />
+                        <Simple value="Y" />
+                        <Simple value="35" />
+                        <Null />
+                        <Simple value="165" />
+                        <Simple value="40" />
+                        <Simple value="4" />
+                        <Simple value="4" />
+                        <Simple value="4" />
+                        <Simple value="1" />
+                        <Simple value="2" />
+                        <Simple value="100d" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="3" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="24h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="139" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="139" />
+                        <Simple value="RS1" />
+                        <Simple value="Swarm RS1 Bosque Otoñal" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="250" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="140" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="140" />
+                        <Simple value="RS2" />
+                        <Simple value="Swarm RS2 Bosque Lluvioso" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="141" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="141" />
+                        <Simple value="RS3" />
+                        <Simple value="Swarm RS3 Quebrada" />
+                        <Simple value="N &amp; S" />
+                        <Simple value="Y" />
+                        <Simple value="500" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="142" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="142" />
+                        <Simple value="RS4" />
+                        <Simple value="Swarm RS4 Los Decrépitos" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="2000" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="143" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="143" />
+                        <Simple value="RS5" />
+                        <Simple value="Swarm RS5 Laberinto Helado" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="700" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="144" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="144" />
+                        <Simple value="RS6" />
+                        <Simple value="Swarm RS6 Ruinas Desierto" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="1125" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="145" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="145" />
+                        <Simple value="RS7" />
+                        <Simple value="Swarm RS7 Tierras Agrietadas" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="1625" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="146" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="146" />
+                        <Simple value="RS8" />
+                        <Simple value="Swarm RS8 Harpy Nest" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="500" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="147" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="147" />
+                        <Simple value="RS9" />
+                        <Simple value="Swarm RS9 Desierto" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="9" />
+                        <Null />
+                        <Simple value="189" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="148" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="148" />
+                        <Simple value="RSA" />
+                        <Simple value="Swarm RSA Pantano Venom" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="149" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="149" />
+                        <Simple value="RSB" />
+                        <Simple value="Swarm RSB Ruinas Lluvia" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="15" />
+                        <Null />
+                        <Simple value="189" />
+                        <Simple value="10" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="150" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="150" />
+                        <Simple value="RSC" />
+                        <Simple value="Swarm RSC Cruce de Ríos" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="4" />
+                        <Simple value="0h" />
+                        <Null />
+                        <Simple value="2h" />
+                        <Simple value="10" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="151" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="151" />
+                        <Simple value="RSF" />
+                        <Simple value="Swarm RSF Alpino" />
+                        <Simple value="N &amp; S &amp; E &amp; W" />
+                        <Simple value="Y" />
+                        <Simple value="5" />
+                        <Null />
+                        <Simple value="90" />
+                        <Simple value="5" />
+                        <Null />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="10" />
+                        <Null />
+                        <Null />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="152" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="152" />
+                        <Simple value="RSD" />
+                        <Simple value="Swarm RSD Gigantes" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Simple value="5h" />
+                        <Simple value="10" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="153" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="153" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="4035" />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="0h" />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="154" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="154" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="1800" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="32h" />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="155" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="155" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="50" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="64h" />
+                        <Null />
+                        <Simple value="6h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="156" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="156" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Simple value="88h" />
+                        <Null />
+                        <Simple value="6h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="157" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="157" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="150" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="122h" />
+                        <Null />
+                        <Simple value="6h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="158" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="158" />
+                        <Simple value="RSE" />
+                        <Simple value="Swarm RSE Final" />
+                        <Simple value="N | S | E | W" />
+                        <Simple value="Y" />
+                        <Simple value="20" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="5" />
+                        <Simple value="146h" />
+                        <Null />
+                        <Simple value="6h" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Simple value="16" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Simple value="8h" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="LevelEvents" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="Missions" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDCampaign" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="Public" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="MissionType" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="Level" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="IsLastMission" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="TrainStartHour" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="ExtraScorePoints" />
+                    <Simple value="7" />
+                  </Item>
+                  <Item>
+                    <Simple value="EmpirePointsReward" />
+                    <Simple value="8" />
+                  </Item>
+                  <Item>
+                    <Simple value="ResearchPointsReward" />
+                    <Simple value="9" />
+                  </Item>
+                  <Item>
+                    <Simple value="HeroPerksPointsReward" />
+                    <Simple value="10" />
+                  </Item>
+                  <Item>
+                    <Simple value="BonusItemsPointsEmpire" />
+                    <Simple value="11" />
+                  </Item>
+                  <Item>
+                    <Simple value="BonusItemsPointsResearch" />
+                    <Simple value="12" />
+                  </Item>
+                  <Item>
+                    <Simple value="MaxTimeBase" />
+                    <Simple value="13" />
+                  </Item>
+                  <Item>
+                    <Simple value="InfectionNestsFactor" />
+                    <Simple value="14" />
+                  </Item>
+                  <Item>
+                    <Simple value="GeneratorsSpeed" />
+                    <Simple value="15" />
+                  </Item>
+                  <Item>
+                    <Simple value="MapConditions" />
+                    <Simple value="16" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalColonists" />
+                    <Simple value="17" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalDaysAlive" />
+                    <Simple value="18" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalGold" />
+                    <Simple value="19" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalWood" />
+                    <Simple value="20" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalStone" />
+                    <Simple value="21" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalIron" />
+                    <Simple value="22" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalOil" />
+                    <Simple value="23" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDGoalEntities" />
+                    <Simple value="24" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalAllInfectedKilled" />
+                    <Simple value="25" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalResistAllSwarms" />
+                    <Simple value="26" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalDoomVillagesDestroyed" />
+                    <Simple value="27" />
+                  </Item>
+                  <Item>
+                    <Simple value="GoalIDEntitiesTaken" />
+                    <Simple value="28" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDInitialUnits" />
+                    <Simple value="29" />
+                  </Item>
+                  <Item>
+                    <Simple value="InitialGold" />
+                    <Simple value="30" />
+                  </Item>
+                  <Item>
+                    <Simple value="InitialWood" />
+                    <Simple value="31" />
+                  </Item>
+                  <Item>
+                    <Simple value="InitialStone" />
+                    <Simple value="32" />
+                  </Item>
+                  <Item>
+                    <Simple value="InitialIron" />
+                    <Simple value="33" />
+                  </Item>
+                  <Item>
+                    <Simple value="InitialOil" />
+                    <Simple value="34" />
+                  </Item>
+                  <Item>
+                    <Simple value="MinMissionsForUnlocking" />
+                    <Simple value="35" />
+                  </Item>
+                  <Item>
+                    <Simple value="MusicSoundFile" />
+                    <Simple value="36" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="IC" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="IC" />
+                        <Simple value="Reconquest" />
+                        <Null />
+                        <Simple value="Special" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R01" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R01" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="140" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Rainy" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(8)" />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R02" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R02" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="140" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="400" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R03" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R03" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="1" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="140" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="FertileLand" />
+                        <Simple value="600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_Forest.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R04" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R04" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="70" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="700" />
+                        <Null />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R05" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R05" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="FertileSea" />
+                        <Simple value="800" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R06" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R06" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R07" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R07" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="70" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1200" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R08" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R08" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="65" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Rainy;FertileSea" />
+                        <Simple value="1500" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R09" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R09" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="70" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Snowy; VeryCold" />
+                        <Simple value="1000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R10" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R10" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Simple value="FertileSea; SlowTerrain; Snowy;Cold" />
+                        <Simple value="1500" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R11" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R11" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="60" />
+                        <Simple value="1" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_Forest.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R12" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R12" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="70" />
+                        <Simple value="1,5" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R13" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R13" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="70" />
+                        <Simple value="6" />
+                        <Simple value="VeryFast" />
+                        <Simple value="FarSight; InfectedActive" />
+                        <Simple value="1500" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R15" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R15" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="75" />
+                        <Simple value="1,5" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="2600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R14" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R14" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="320" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="1,5" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1800" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R16" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R16" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="3" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="260" />
+                        <Simple value="240" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="75" />
+                        <Simple value="5" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Rainy" />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R17" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R17" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="320" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R18" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R18" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="320" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="3" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1600" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R19" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R19" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="320" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Null />
+                        <Simple value="1800" />
+                        <Null />
+                        <Simple value="8000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R20" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R20" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="320" />
+                        <Simple value="300" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="80" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Rainy" />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R21" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R21" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="5" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="380" />
+                        <Simple value="360" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="90" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Snowy; Cold" />
+                        <Simple value="2000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="R22" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="R22" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="5" />
+                        <Null />
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="380" />
+                        <Simple value="360" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="95" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Snowy;" />
+                        <Simple value="5000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="REND" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="REND" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Colony" />
+                        <Simple value="5" />
+                        <Simple value="Y" />
+                        <Simple value="7" />
+                        <Simple value="500" />
+                        <Simple value="1000" />
+                        <Simple value="1000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="130" />
+                        <Simple value="2" />
+                        <Simple value="VeryFast" />
+                        <Simple value="Rainy;" />
+                        <Simple value="3000" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="Ranger(4)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_FinalMission.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF1" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="120" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignMansion.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF2" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="120" />
+                        <Simple value="250" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignMansion.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF3" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF3" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="190" />
+                        <Simple value="360" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignFactory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF4" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF4" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="190" />
+                        <Simple value="400" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignLaboratory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF5" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF5" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="260" />
+                        <Simple value="460" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignFactory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF6" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="260" />
+                        <Simple value="520" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignFactory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF7" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF7" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="260" />
+                        <Simple value="560" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignMansion.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RF8" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RF8" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="330" />
+                        <Simple value="600" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignFactory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RFA" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RFA" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="330" />
+                        <Simple value="700" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignLaboratory.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RFB" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RFB" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Tactic" />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Simple value="200" />
+                        <Null />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="400" />
+                        <Simple value="800" />
+                        <Null />
+                        <Simple value="1" />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MissionArtifact(1)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ambient_CampaignMansion.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS1" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS2" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Simple value="Rainy" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS3" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS3" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS4" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS4" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS5" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS5" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Simple value="Snowy;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS6" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="180" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS7" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS7" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="260" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS8" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS8" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="260" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RS9" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RS9" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="260" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSA" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSA" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="340" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSB" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSB" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="340" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Simple value="Rainy;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSC" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSC" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="4" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="340" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Simple value="Rainy;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSF" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSF" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="440" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medium" />
+                        <Simple value="Snowy;SlowTerrain;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSD" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSD" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="460" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Simple value="Snowy;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RSE" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RSE" />
+                        <Simple value="Reconquest" />
+                        <Simple value="Y" />
+                        <Simple value="Swarm" />
+                        <Simple value="5" />
+                        <Null />
+                        <Null />
+                        <Simple value="200" />
+                        <Simple value="460" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Slow" />
+                        <Simple value="Rainy;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Y" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CampaignArmyDeployment.ogg" />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="Missions" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="Researchs" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="Cost" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="Special" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDRequisites" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDEntities" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="Mods" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="TrainBonus" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDExtraEntitiesOnStart" />
+                    <Simple value="7" />
+                  </Item>
+                  <Item>
+                    <Simple value="ExtraEmpirePoints" />
+                    <Simple value="8" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDCommandGranted" />
+                    <Simple value="9" />
+                  </Item>
+                  <Item>
+                    <Simple value="Name" />
+                    <Simple value="10" />
+                  </Item>
+                  <Item>
+                    <Simple value="Description" />
+                    <Simple value="11" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="Quarry" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Quarry" />
+                        <Simple value="0" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Tecnología de Vapor" />
+                        <Simple value="Tecnología básica basada en el vapor y la energía eólica. La red de energía se extiende mediante Torres Tesla de forma inalámbrica." />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ImprovedEngines" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ImprovedEngines" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="FishermanCottage ResourceCollectionCellValue +20%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Rodamientos y Poleas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ImprovedMill" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ImprovedMill" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="MillWood EnergySupply +30%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Turbinas Eficientes" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BonusRanger" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BonusRanger" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ranger" />
+                        <Null />
+                        <Null />
+                        <Simple value="Mercenarios I" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BonusSniper" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BonusSniper" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Sniper" />
+                        <Null />
+                        <Null />
+                        <Simple value="Mercenarios II" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Soldier" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Soldier" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Simple value="SoldierRegular" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Fusil de Asalto" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Militia" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Militia" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Building DeffensesLife +20%" />
+                        <Null />
+                        <Simple value="SoldierRegular" />
+                        <Null />
+                        <Null />
+                        <Simple value="Entrenamiento Militar" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedHunting" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Advanced Hunting" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="HunterCottage  ResourceCollectionCellValue +20%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Armamento de Caza" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WatchTowerWood" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WatchTowerWood" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Simple value="WatchTowerWood" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Defensas en Altura I" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WoodDefense" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Wood Defense" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="WallWood Life +20%; GateWood Life +20%; WatchTowerWood Life + 20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Contrafuertes de Madera" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Logistics" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Logistics" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CommandCenter ResourcesStorage +20; CommandCenter GoldGen +40;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Logística" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BasicSupplies" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BasicSupplies" />
+                        <Simple value="100" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="CommandCenter FoodSupply +20; CommandCenter EnergySupply +20;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Suministros Básicos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainGold1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainGold1" />
+                        <Simple value="120" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Gold(200)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Oro" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainWood1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainWood1" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Null />
+                        <Simple value="Wood(15)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Madera" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainStone1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainStone1" />
+                        <Simple value="160" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Null />
+                        <Simple value="Stone(8)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Piedra" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainIron1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainIron1" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Null />
+                        <Simple value="Iron(6)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Hierro" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainOil1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainOil1" />
+                        <Simple value="240" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Null />
+                        <Simple value="Oil(5)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Petróleo" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainGold2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainGold2" />
+                        <Simple value="300" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Null />
+                        <Simple value="Gold(300)" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Lingotes" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrainMachineGun" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrainMachineGun" />
+                        <Simple value="400" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Null />
+                        <Simple value="MachineGun" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transporte de Artillería" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WoodWorkshop" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="240" />
+                        <Simple value="Y" />
+                        <Null />
+                        <Simple value="WoodWorkshop, CottageHouse" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Talleres Expertos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrapStakes" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrapStakes" />
+                        <Simple value="80" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="TrapStakes" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Barricadas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SoldierArmors" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SoldierArmors" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="SoldierRegular Armor +0,2;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Armaduras Reforzadas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BonusSoldier" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BonusSoldier" />
+                        <Simple value="80" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="SoldierRegular" />
+                        <Null />
+                        <Null />
+                        <Simple value="Soldado Profesional" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedArrows" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedArrows" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="RangerAttack Damage +20%; RangerAttackVeteran Damage +20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Proyectiles Reforzados" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Ballista" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Ballista" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="Ballista" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Armamento Mecanizado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="BonusBallista" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="BonusBallista" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ballista" />
+                        <Null />
+                        <Null />
+                        <Simple value="Piezas Prefabricadas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Farm" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Farm" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="Farm" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Cultivo de Cereal" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Market" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Market" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="Market" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Comercio" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheInn" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheInn" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="TheInn" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheInn" />
+                        <Simple value="Hospedaje" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Optics" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Optics" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="CommandCenter WatchRange +5;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Óptica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="LookoutTower" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="LookoutTower" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="LookoutTower" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Lentes Avanzadas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Sniper" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Sniper" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="Sniper" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Mira Telescópica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SoldierOptics" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SoldierOptics" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="SoldierRegular WatchRange +1; SoldierRegularAttack ActionRange +1; SoldierRegularAttackVeteran ActionRange +1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Fusil de Largo Alcance" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheGreatTelescope" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheGreatTelescope" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="TheGreatTelescope" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheGreatTelescope" />
+                        <Simple value="Vision Global" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WareHouse" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WareHouse" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="WareHouse" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Almacenamiento Mecanizado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Recycling" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Recycling" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="Structure FactorResourcesReturn + 30%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Reciclaje de Estructuras" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="GoldPerKill1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="GoldPerKill1" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="Zombie GoldPerKill +1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Reciclaje de Cadáveres" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastInn" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastInn" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="TheInn NDaysNewMercenariesInterval = 3" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Juego y Apuestas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Medicine" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Medicine" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="SoldierRegular Life+20%;Ranger Life +20%;Sniper Life +20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Medicina" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastResearch1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastResearch1" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="WoodWorkshop" />
+                        <Null />
+                        <Simple value="Technology BuildingTimeFactor -25%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Laboratorio Avanzado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="StoneWorkshop" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="260" />
+                        <Simple value="Y" />
+                        <Simple value="WoodWorkshop" />
+                        <Simple value="StoneWorkshop, StoneHouse" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Construcción Avanzada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="MachineGun" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="MachineGun" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="MachineGun" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Armamento Automatizado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedOutpost" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedOutpost" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="OutpostMetal" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Puesto de Ataque Acorazado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Magnetism" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Magnetism" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="CommandCenter EnergyTransferRadius +4; CommandCenter EnergySupply+20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Bobinas de Tesla" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="ShockingTower" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="ShockingTower" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="ShockingTower" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Esferas de Plasma" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SockingExtended1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Socking Extended1" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="ShockingTowerAttack ActionRange+1; ShockingTower WatchRange+1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ionizador de Alto Voltaje" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TeslaExtended1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Tesla Extended1" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="EnergyWoodTower EnergyTransferRadius +1; EnergyWoodTower WatchRange +1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transferencia Tesla Avanzada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="PowerPlant" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="PowerPlant" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="PowerPlant" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Energía Térmica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrapMine" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrapMine" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="TrapMine" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Explosivos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="PrestigeInn" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="PrestigeInn" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="TheInn FactorPrestige +50%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Monumentos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastTraining" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastTraining" />
+                        <Simple value="100" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="SoldierRegular BuildingTimeFactor -10%;Ranger BuildingTimeFactor -10%;Sniper BuildingTimeFactor -10%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Entrenamiento Avanzado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastLearning" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastLearning" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="HumanArmyUnit ExperienceNeededToVeteran -20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Tacticas Militares" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheAcademy" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheAcademy" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="TheAcademy" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheSoldierAcademy" />
+                        <Simple value="Maestría Militar" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WallStone" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WallStone" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="WallStone, GateStone" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Hormigón" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="WatchTowerStone" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="WatchTowerStone" />
+                        <Simple value="80" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="WatchTowerStone" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Defensas en Altura II" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="StoneDefense" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="StoneDefense" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="WallStone Life +20%; GateStone Life +20%; WatchTowerStone Life + 20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Hormigón Armado" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheVictorious" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheVictorious" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="TheVictorious" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheVictorious" />
+                        <Simple value="Forjado de Bronce" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Bank" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Bank" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="Bank" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Moneda" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="GoldPerKill2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="GoldPerKill2" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="Zombie GoldPerKill +1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Mercado Negro" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Quemistry" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Quemistry" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="SoldierRegularAttack Damage +20%; SoldierRegularAttackVeteran Damage +20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Química" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="EcoDwellings" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="EcoDwellings" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Null />
+                        <Simple value="CottageHouse EnergyNeeded -1; StoneHouse EnergyNeeded -2;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Materiales Aislantes" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheCrystalPalace" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheCrystalPalace" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="TheCrystalPalace" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheCrystalPalace" />
+                        <Simple value="Control Climático" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Foundry" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Foundry" />
+                        <Simple value="280" />
+                        <Simple value="Y" />
+                        <Simple value="StoneWorkshop" />
+                        <Simple value="Foundry, OilPlatform" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechOilPlatform" />
+                        <Simple value="Maquinaria Avanzada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheSpire" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheSpire" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="TheSpire" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheElectricSpire" />
+                        <Simple value="Condensador de Rayos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TheTransmutator" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TheTransmutator" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="TheTransmutator" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TechTheTransmutator" />
+                        <Simple value="Transmutación Quimica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="MillIron" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="MillIron" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="MillIron" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Turbinas de Acero" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastResearch2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastResearch2" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="Technology BuildingTimeFactor -25%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Investigación Avazada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Titanium" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Titanium" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="Building DeffensesLife +10%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Titanio" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedSawmill" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedSawmill" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="Sawmill  ResourceCollectionCellValue +10%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Sierra de Tungsteno" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TrapBlades" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TrapBlades" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="TrapBlades" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Alambre de Espino" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedQuarry" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedQuarry" />
+                        <Simple value="160" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="AdvancedQuarry" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Herramientas de Tungsteno" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SharpBlades" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SharpBlades" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="TrapBlades Life +30%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Acero al Carbono" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedUnitCenter" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedUnitCenter" />
+                        <Simple value="160" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="AdvancedUnitCenter, Lucifer" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ingeniería Mecánica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="RadarTower" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="RadarTower" />
+                        <Simple value="140" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="RadarTower" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Radar" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Executor" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Executor" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="Executor" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Artillería de Combate" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Articulations" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Articulations" />
+                        <Simple value="120" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="OilPlatform OilGen +1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Articulaciones Neumáticas" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Thanatos" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Thanatos" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="Thanatos" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Exoesqueletos Mecánicos" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Titan" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Titan" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="Titan" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Vehículos Articulados" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedFarm" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedFarm" />
+                        <Simple value="160" />
+                        <Null />
+                        <Simple value="Foundry" />
+                        <Simple value="AdvancedFarm" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Bioquímica" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Technology" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Technology" />
+                        <Simple value="300" />
+                        <Simple value="Y" />
+                        <Simple value="Foundry" />
+                        <Null />
+                        <Simple value="Structure BuildingTimeFactor -10%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Alta Tecnología" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="NanoMaterials" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="NanoMaterials" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="HumanArmyUnit Armor +0,05" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Nanomateriales" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Mutant" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Mutant" />
+                        <Simple value="300" />
+                        <Null />
+                        <Simple value="Technology, AdvancedUnitCenter" />
+                        <Simple value="Mutant" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Ingeniería Genética" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="UltraVisionSniper" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="UltraVisionSniper" />
+                        <Simple value="220" />
+                        <Null />
+                        <Simple value="Technology, Sniper" />
+                        <Null />
+                        <Simple value="Sniper WatchRange +1; SniperAttack ActionRange +1; SniperAttack Damage +20%; SniperAttackVeteran ActionRange +1; SniperAttackVeteran Damage +20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Realidad Aumentada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedTitan" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedTitan" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Technology, Titan" />
+                        <Null />
+                        <Simple value="TitanAttack Damage +25%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Láser" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedProduction" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedProduction" />
+                        <Simple value="240" />
+                        <Null />
+                        <Simple value="Technology, AdvancedQuarry" />
+                        <Null />
+                        <Simple value="AdvancedQuarry ResourceCollectionCellValue +20%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Herramientas de Diamate" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SuperConductor" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SuperConductor" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="ShockingTower EnergyNeeded -30%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Superconductores" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SockingExtended2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SockingExtended2" />
+                        <Simple value="220" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="ShockingTowerAttack ActionRange+1; ShockingTower WatchRange+1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Plasma de Alta Energía" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="TeslaExtended2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="TeslaExtended2" />
+                        <Simple value="240" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="EnergyWoodTower EnergyTransferRadius +1; EnergyWoodTower WatchRange +1;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Transferencia Tesla Óptima" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="SolarPower" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="SolarPower" />
+                        <Simple value="240" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="Building EnergyNeeded -20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Energía Solar" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="Refinery" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="Refinery" />
+                        <Simple value="240" />
+                        <Null />
+                        <Simple value="Technology" />
+                        <Null />
+                        <Simple value="OilPlatform OilGen +20%" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Perforación Profunda" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="FastInn2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="FastInn2" />
+                        <Simple value="200" />
+                        <Null />
+                        <Simple value="Technology, FastInn" />
+                        <Null />
+                        <Simple value="TheInn NDaysNewMercenariesInterval = 2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Música" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="AdvancedBullets" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="AdvancedBullets" />
+                        <Simple value="180" />
+                        <Null />
+                        <Simple value="Technology, Soldier" />
+                        <Null />
+                        <Simple value="SoldierRegularAttack Damage +20%; SoldierRegularAttackVeteran Damage +20%;" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="Munición Avanzada" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="Researchs" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="ResearchTree" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="1" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="2" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="3" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="4" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="5" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="6" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="7" />
+                    <Simple value="7" />
+                  </Item>
+                  <Item>
+                    <Simple value="8" />
+                    <Simple value="8" />
+                  </Item>
+                  <Item>
+                    <Simple value="9" />
+                    <Simple value="9" />
+                  </Item>
+                  <Item>
+                    <Simple value="10" />
+                    <Simple value="10" />
+                  </Item>
+                  <Item>
+                    <Simple value="11" />
+                    <Simple value="11" />
+                  </Item>
+                  <Item>
+                    <Simple value="12" />
+                    <Simple value="12" />
+                  </Item>
+                  <Item>
+                    <Simple value="13" />
+                    <Simple value="13" />
+                  </Item>
+                  <Item>
+                    <Simple value="14" />
+                    <Simple value="14" />
+                  </Item>
+                  <Item>
+                    <Simple value="15" />
+                    <Simple value="15" />
+                  </Item>
+                  <Item>
+                    <Simple value="16" />
+                    <Simple value="16" />
+                  </Item>
+                  <Item>
+                    <Simple value="17" />
+                    <Simple value="17" />
+                  </Item>
+                  <Item>
+                    <Simple value="18" />
+                    <Simple value="18" />
+                  </Item>
+                  <Item>
+                    <Simple value="19" />
+                    <Simple value="19" />
+                  </Item>
+                  <Item>
+                    <Simple value="20" />
+                    <Simple value="20" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="TheInn" />
+                        <Simple value="Fast Inn" />
+                        <Null />
+                        <Simple value="Tesla Extended1" />
+                        <Null />
+                        <Null />
+                        <Simple value="◀TheSpire" />
+                        <Null />
+                        <Simple value="Thanatos" />
+                        <Null />
+                        <Simple value="AdvancedBullets" />
+                        <Simple value="◀AdvancedTitan" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="2" />
+                        <Null />
+                        <Simple value="Improved Engines" />
+                        <Simple value="Improved Mill" />
+                        <Null />
+                        <Simple value="Farm" />
+                        <Simple value="Market" />
+                        <Null />
+                        <Null />
+                        <Simple value="Magnetism" />
+                        <Null />
+                        <Simple value="◀Shocking Tower" />
+                        <Simple value="Socking Extended1" />
+                        <Null />
+                        <Simple value="Articulations" />
+                        <Simple value="Titan" />
+                        <Null />
+                        <Null />
+                        <Simple value="▼Mutant" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="3" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="3" />
+                        <Null />
+                        <Null />
+                        <Simple value="Militia" />
+                        <Null />
+                        <Simple value="Soldier Armors" />
+                        <Simple value="Bonus Soldier" />
+                        <Null />
+                        <Null />
+                        <Simple value="Power Plant" />
+                        <Simple value="Trap Mine" />
+                        <Null />
+                        <Null />
+                        <Simple value="▼Advanced UnitCenter" />
+                        <Simple value="Radar Tower" />
+                        <Simple value="Executor" />
+                        <Null />
+                        <Simple value="NanoMaterials" />
+                        <Simple value="◀UltraVisionSniper" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="4" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="4" />
+                        <Null />
+                        <Simple value="Soldier" />
+                        <Simple value="Advanced Hunting" />
+                        <Null />
+                        <Simple value="Advanced Arrows" />
+                        <Simple value="Ballista" />
+                        <Simple value="Bonus Ballista" />
+                        <Null />
+                        <Simple value="Fast Training" />
+                        <Simple value="Fast Learning" />
+                        <Simple value="The Academy" />
+                        <Null />
+                        <Simple value="MillIron" />
+                        <Simple value="Fast Research 2" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="▲AdvancedProduction" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="5" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="5" />
+                        <Simple value="Quarry" />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Wood Workshop" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Stone Workshop" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Foundry" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Technology" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="6" />
+                        <Null />
+                        <Simple value="Bonus Ranger" />
+                        <Simple value="Bonus Sniper" />
+                        <Null />
+                        <Simple value="▲Optics" />
+                        <Simple value="Lookout Tower" />
+                        <Simple value="Sniper" />
+                        <Null />
+                        <Simple value="WallStone" />
+                        <Simple value="Bank" />
+                        <Simple value="GoldPerKill2" />
+                        <Null />
+                        <Simple value="Foundry.Advanced Farm" />
+                        <Null />
+                        <Simple value="◀The Transmutator" />
+                        <Null />
+                        <Null />
+                        <Simple value="▼SockingExtended2" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="7" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="7" />
+                        <Null />
+                        <Simple value="Watch Tower Wood" />
+                        <Simple value="Wood Defense" />
+                        <Null />
+                        <Simple value="◀Trap Stakes" />
+                        <Simple value="▲Soldier Optics" />
+                        <Simple value="The Great Telescope" />
+                        <Null />
+                        <Null />
+                        <Simple value="▲Watch Tower Stone" />
+                        <Simple value="Stone Defense" />
+                        <Simple value="TheVictorious" />
+                        <Null />
+                        <Simple value="AdvancedSawmill" />
+                        <Null />
+                        <Null />
+                        <Simple value="▲SuperConductor" />
+                        <Simple value="◀TeslaExtended2" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="8" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="8" />
+                        <Null />
+                        <Null />
+                        <Simple value="Basic Supplies" />
+                        <Null />
+                        <Simple value="◀Medicine" />
+                        <Simple value="Fast Research 1" />
+                        <Null />
+                        <Null />
+                        <Simple value="Quemistry" />
+                        <Simple value="Eco Dwellings" />
+                        <Simple value="The Crystal Palace" />
+                        <Simple value="Prestige Inn" />
+                        <Simple value="Foundry.Titanium" />
+                        <Simple value="Advanced Quarry" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="▲SolarPower" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="9" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="9" />
+                        <Null />
+                        <Simple value="Logistics" />
+                        <Null />
+                        <Simple value="◀WareHouse" />
+                        <Simple value="Recycling" />
+                        <Simple value="GoldPerKill1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="▲Machine Gun" />
+                        <Simple value="Advanced Outpost" />
+                        <Null />
+                        <Null />
+                        <Simple value="▲TrapBlades" />
+                        <Simple value="Sharp Blades" />
+                        <Null />
+                        <Simple value="▲Fast Inn 2" />
+                        <Simple value="▲Refinery" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="10" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="10" />
+                        <Null />
+                        <Null />
+                        <Simple value="TrainGold1" />
+                        <Null />
+                        <Simple value="◀Train Wood1" />
+                        <Null />
+                        <Simple value="◀Train Stone1" />
+                        <Null />
+                        <Simple value="◀Train Iron1" />
+                        <Null />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Train Oil1" />
+                        <Null />
+                        <Null />
+                        <Simple value="◀Train Gold 2" />
+                        <Null />
+                        <Simple value="◀TrainMachineGun" />
+                        <Null />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="ResearchTree" />
+            </Properties>
+          </Complex>
+        </Item>
+        <Item>
+          <Simple value="Videos" />
+          <Complex>
+            <Properties>
+              <Dictionary name="Cols" keyType="System.String, mscorlib" valueType="System.Int32, mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="ID" />
+                    <Simple value="0" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDCampaign" />
+                    <Simple value="1" />
+                  </Item>
+                  <Item>
+                    <Simple value="NColoniesBuilt" />
+                    <Simple value="2" />
+                  </Item>
+                  <Item>
+                    <Simple value="File" />
+                    <Simple value="3" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDTextBefore" />
+                    <Simple value="4" />
+                  </Item>
+                  <Item>
+                    <Simple value="IDNextVideo" />
+                    <Simple value="5" />
+                  </Item>
+                  <Item>
+                    <Simple value="OffsetSubtitles" />
+                    <Simple value="6" />
+                  </Item>
+                  <Item>
+                    <Simple value="Description" />
+                    <Simple value="7" />
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Dictionary name="Rows" keyType="System.String, mscorlib" valueType="System.String[], mscorlib">
+                <Items>
+                  <Item>
+                    <Simple value="1" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="1" />
+                        <Simple value="Reconquest" />
+                        <Simple value="0" />
+                        <Simple value="Video_CampaignIntro.zxvideo" />
+                        <Null />
+                        <Simple value="2" />
+                        <Simple value="0" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="2" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="2" />
+                        <Simple value="Reconquest" />
+                        <Simple value="0" />
+                        <Simple value="Video_CampaignStart.zxvideo" />
+                        <Simple value="After13Years" />
+                        <Null />
+                        <Simple value="2300" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="3" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="3" />
+                        <Simple value="Reconquest" />
+                        <Simple value="4" />
+                        <Simple value="Video_CampaignAfter4Colonies.zxvideo" />
+                        <Simple value="VisitQuintusThrone" />
+                        <Null />
+                        <Simple value="2300" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="4" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="4" />
+                        <Simple value="Reconquest" />
+                        <Simple value="12" />
+                        <Simple value="Video_CampaignAfter12Colonies.zxvideo" />
+                        <Simple value="VisitQuintusThrone" />
+                        <Null />
+                        <Simple value="0" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="5" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="5" />
+                        <Simple value="Reconquest" />
+                        <Simple value="20" />
+                        <Simple value="Video_CampaignAfter20Colonies.zxvideo" />
+                        <Simple value="VisitQuintusThrone" />
+                        <Null />
+                        <Simple value="2300" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                  <Item>
+                    <Simple value="6" />
+                    <SingleArray elementType="System.String, mscorlib">
+                      <Items>
+                        <Simple value="6" />
+                        <Simple value="Reconquest" />
+                        <Simple value="23" />
+                        <Simple value="Video_CampaignEnd.zxvideo" />
+                        <Simple value="VisitQuintusThrone" />
+                        <Null />
+                        <Simple value="2300" />
+                        <Null />
+                      </Items>
+                    </SingleArray>
+                  </Item>
+                </Items>
+              </Dictionary>
+              <Simple name="Name" value="Videos" />
+            </Properties>
+          </Complex>
+        </Item>
+      </Items>
+    </Dictionary>
+  </Properties>
+</Complex>
+
+"""
+
+#xml_to_csv(xml_string)
+
+
