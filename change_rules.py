@@ -12,16 +12,17 @@ import pandas as pd
 import re
 import shutil
 
-global working_directory, game_directory, xls_file_path
+global working_directory, game_directory, xls_file_path, sevenzip_executable
 
+sevenzip_executable = r'C:\Program Files\7-Zip\7z.exe'
 working_directory = 'C:/Users/Josh/Desktop/MODS/Scripts/'
 xls_file_path = 'C:/Users/Josh/Downloads/Rebalanced Mod.xlsx'
 game_directory = 'D:/SteamLibrary/steamapps/common/They Are Billions'
+
 rulesfilename = 'ZXRules.dat'
 rulespassword = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
 filenameCampaign = 'ZXCampaign.dat' 
-campaignpassword = ''
-
+campaignpassword = '1688788812-163327433-2005584771'
 
 class Data():
     # Class sheet handles parsing and holding of original data as well as any modifications to it
@@ -37,7 +38,7 @@ class Data():
         self.original_file_data      = []
         
     def unzip_file_with_7zip(self):
-        sevenzip_executable = r'C:\Program Files\7-Zip\7z.exe'  # Adjust the path based on your installation
+          # Adjust the path based on your installation
         try:
             command = [
                 sevenzip_executable,
@@ -323,7 +324,6 @@ class modify_entities(modify_sheet):
     def modify_all_zombies(self,attribute,scalar):
         for zombie in self.zombies:
             self.modify_attribute(attribute,zombie,scalar)
-            
 
 class modify_mayor(modify_sheet):
     def __init__(self, data):
@@ -391,37 +391,37 @@ class modify_mapthemes(modify_sheet):
         self.sheet_name    = "mod_ZXRules_MapThemes"
         self.find_end_line = '<Simple name="Name" value="MapThemes" />'
         
-#Read In Original Data
-File_Data = Data(rulesfilename,rulespassword)
-File_Data.unzip_file_with_7zip()
-File_Data.read_zxrules()
+# #Read In Original Data
+# File_Data = Data(rulesfilename,rulespassword)
+# File_Data.unzip_file_with_7zip()
+# File_Data.read_zxrules()
 
-#Read in New Data
-Entity_Data = modify_entities(File_Data)
-Entity_Data.read_sheet_to_xml()
-Entity_Data.format_xml()
-Entity_Data.get_all_locations()
-Entity_Data.modify_all_zombies("Life",2)
-Entity_Data.find_start_location()
-Entity_Data.find_end_location()
-File_Data.original_file_data  = Entity_Data.replace_and_insert()
+# #Read in New Data
+# Entity_Data = modify_entities(File_Data)
+# Entity_Data.read_sheet_to_xml()
+# Entity_Data.format_xml()
+# Entity_Data.get_all_locations()
+# Entity_Data.modify_all_zombies("Life",2)
+# Entity_Data.find_start_location()
+# Entity_Data.find_end_location()
+# File_Data.original_file_data  = Entity_Data.replace_and_insert()
 
-Command_Data = modify_commands(File_Data)
-Command_Data.read_sheet_to_xml()
-Command_Data.format_xml()
-Command_Data.find_start_location()
-Command_Data.find_end_location()
-File_Data.original_file_data  = Command_Data.replace_and_insert()
+# Command_Data = modify_commands(File_Data)
+# Command_Data.read_sheet_to_xml()
+# Command_Data.format_xml()
+# Command_Data.find_start_location()
+# Command_Data.find_end_location()
+# File_Data.original_file_data  = Command_Data.replace_and_insert()
 
-MapTheme_Data = modify_mapthemes(File_Data)
-MapTheme_Data.read_sheet_to_xml()
-MapTheme_Data.format_xml()
-MapTheme_Data.find_start_location()
-MapTheme_Data.find_end_location()
-File_Data.original_file_data  = MapTheme_Data.replace_and_insert()
+# MapTheme_Data = modify_mapthemes(File_Data)
+# MapTheme_Data.read_sheet_to_xml()
+# MapTheme_Data.format_xml()
+# MapTheme_Data.find_start_location()
+# MapTheme_Data.find_end_location()
+# File_Data.original_file_data  = MapTheme_Data.replace_and_insert()
 
-#Write and put back data
-File_Data.write_file()
-File_Data.zip_files_with_7zip()
-File_Data.move_file()
+# #Write and put back data
+# File_Data.write_file()
+# File_Data.zip_files_with_7zip()
+# File_Data.move_file()
 
