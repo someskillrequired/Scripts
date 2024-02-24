@@ -9,26 +9,31 @@ import shutil
 import copy
 import base64
 import pandas as pd
+import re
+import shutil
 
-global working_directory, filename, game_directory, xls_file_path
+global working_directory, game_directory, xls_file_path
 
 working_directory = 'C:/Users/Josh/Desktop/MODS/Scripts/'
 xls_file_path = 'C:/Users/Josh/Downloads/Rebalanced Mod.xlsx'
 game_directory = 'D:/SteamLibrary/steamapps/common/They Are Billions'
-filename = 'ZXRules.dat'
+rulesfilename = 'ZXRules.dat'
+rulespassword = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
+filenameCampaign = 'ZXCampaign.dat' 
+campaignpassword = ''
+
 
 class Data():
     # Class sheet handles parsing and holding of original data as well as any modifications to it
-    def __init__(self):
-        self.password = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
-        
+    def __init__(self,filename,password):
+        self.password = password
+        self.filename = filename
         self.original_file      = f'{working_directory}data/original/{filename}'
         self.unzipped_file_path = f'{working_directory}data/unzipped/'
         self.unzipped_file      = f'{working_directory}data/unzipped/{filename}'
         self.modded_file_path   = f'{working_directory}data/modded/{filename}'
         self.zipped_file_path   = f'{working_directory}data/rezipped/{filename}'
-        self.game_directory     = game_directory
-
+        self.game_directory     = f'{game_directory}/{filename}'
         self.original_file_data      = []
         
     def unzip_file_with_7zip(self):
@@ -77,6 +82,9 @@ class Data():
             subprocess.run(command, check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error compressing file '{self.modded_file_path}': {e}")
+            
+    def move_file(self):
+        shutil.copy(self.zipped_file_path,self.game_directory)
 
 class modify_sheet():
     def __init__(self,original_data):
@@ -131,18 +139,11 @@ class modify_sheet():
     def find_end_location(self):
         for index, line in enumerate(self.original_data):
             if self.find_end_line in line:
-                print("self.find_end_line= ", self.find_end_line)
-                print("index= ", index)
                 self.endindex = index
         
     def read_sheet_to_xml(self):
         
         def format_cell_value(cell):
-            """
-            Format the cell value to handle numeric values correctly and replace new lines with semicolons:
-            - Convert numeric values with no decimal part to integers.
-            - Convert other values to string.
-            """
             # Explicitly check for the string "None"
             if cell == "":
                 return None
@@ -253,20 +254,76 @@ class modify_entities(modify_sheet):
         self.sheet_name    = "mod_ZXRules_Entities"
         self.find_end_line = '<Simple name="Name" value="Entities" />'
         self.extracolin = False
+        self.zombies = ["ZombieWeakA","ZombieWeakB", "ZombieWeakC","ZombieWorkerA",
+                        "ZombieWorkerB", "ZombieMediumA","ZombieMediumB","ZombieDressedA",
+                        "ZombieStrongA","ZombieGiant","ZombieHarpy","ZombieVenom","ZombieMutant"]
+        self.units   = ["Ranger","Soldier","Sniper","Lucifer",
+                        "Thanatos","Titan","Mutant","HA","HB"]
         
-    def vars(self):
-        self.zombies     = ["ZombieWeakA","ZombieWeakB", "ZombieWeakC","ZombieWorkerA",
-                            "ZombieWorkerB", "ZombieMediumA","ZombieMediumB","ZombieDressedA",
-                            "ZombieStrongA","Giant","Harpy","Spitter","ZombieMutant"]
+        self.entity_attributes = ["ID","Order","Key","Name","Description","PanelPosition","Nature","Category","Level","Power","CommandRequisite","BuildingRequisite","UpgradeTo","ExperienceNeededToVeteran","Life","Armor","DeffensesLife","LifeRegenFactor","WatchRange","EntityWatchInterval","WatchThroughOpaque","WalkSpeed","RunSpeed","Mass","Height","ActivityAwarenessFactor","BuildingTimeFactor","FactorResourcesReturn","BuildingFrom","BuildingTarget","BuildingMargin","SameBuildingMargin","IgnoreBuildingsMargin","MaxBuildingsAdjacent","MinEmptyCellsAdjacent","CanBeDestroyed","CanBeRepaired","CanBeDisabled","MaxUnitsInside","RangeBonus","MaxInstances","MinColonistsRequisite","CanQueueCommands","CanBeBuiltOnWalls","ColonistType","ColonistUnitNumber","ScorePoints","EngineeringPoints","SciencePoints","EmpirePoints","DisableWithoutEnergy","EnergyTransferRadius","ResourcesStorage","FireDamageFactor","InflamableTime","BurningTime","VenomDamageFactor","Infectable","ExtraUnitsWhenInfected","ConvertibleInZombie","VibrateWhenDamaged","ExplosionOnDestroy","WorkersNeeded","FoodNeeded","EnergyNeeded","GoldCost","WoodCost","StoneCost","IronCost","OilCost","Colonists","WorkersSupply","FoodSupply","EnergySupply","WoodGen","StoneGen","IronGen","OilGen","GoldGen","GoldGenPerColonist","ConvertResourcesIntoGold","ResourcesGenerationTimeFactor","ResourceCollectionType","ResourceCollectionRadius","ResourceCollectionCellValue","Averageunitsperturnestimated","AffectedByEnhancerBuildings","FactorProductionNearBuildings","FactorGoldNearBuildings","FactorFoodNeedNearBuildings","MakeSoldiersVeteran","ShowFullMap","CanEnterInBuildings","CanTravel","CanStop","CanHold","CanPatrol","CanChase","CanJump","CanBeCarried","CanCarryObjects","CanCounterAttack","TimeAniNormal","TimeAniSpecial","TimeAniWalk","TimeAniRun","TimeAniDie","TimeAniWork","TimeAniPrepareWork","TimeAniFly","TimeAniPrepareFly","ReverseAniNormal","ReverseAniSpecial","TimeAniJump","TimeAniThrow","TimeAniInteract","AttackCommand","ExtraAttackCommand","BellWalkingFactor","BellRunningFactor","MinRoamingDistance","MaxRoamingDistance","CellsAwayCommandCenter","Behaviour","CanAvoidOverkill","CanBePulled","DisableDiagonalBuilding","EndGameIfInfected","EndGameIfDestroyed","InfectionNestSize","InfectionNestMaxUnits","TerrainSpeedPercentage","GoldPerKill","EmpirePointsCost","NDaysNewMercenariesInterval","FactorCostMercenaries","FactorPrestige","SoundOnDestroy","SoundOnCreation","SoundOnDie","SoundOnSelected","SoundOnCommandGeneric","SoundOnCommandAttack","SoundOnInfection","SoundOnDesertion","SoundOnPick"]
         
-        self.units = ["Ranger","Soldier","Sniper","Lucifer",
-                      "Thanatos","Titan","Mutant","HA","HB"]
+    def get_all_locations(self):
+        self.zombies_dict = {}
+        self.units_dict = {}
+        strstart = '<Simple value="'
+        strfin = '" />'
+        strsec = '<SingleArray elementType="System.String, mscorlib">'
         
-    def modify_enemy_health():
-        pass
+        for zombie in self.zombies:
+            searchstr = f'{strstart}{zombie}{strfin}'
+            for index, line in enumerate(self.xml_data):
+                if searchstr in line:
+                    if index + 1 < len(self.xml_data):
+                        next_line = self.xml_data[index + 1]
+                        if strsec in next_line:
+                            self.zombies_dict[zombie] = index + 3
+                            
+        for units in self.units:
+            searchstr = f'{strstart}{units}{strfin}'
+            for index, line in enumerate(self.xml_data):
+                if searchstr in line:
+                    if index + 1 < len(self.xml_data):
+                        next_line = self.xml_data[index + 1]
+                        if strsec in next_line:
+                            self.units_dict[units] = index + 3
     
-    def modify_enenmy_damage():
-        pass
+    def modify_attribute(self, attribute, entity, scalar):
+        att_index      = self.entity_attributes.index(attribute)
+        
+        if entity in self.units_dict:
+            att_index_ent  = att_index + self.units_dict[entity]
+        elif entity in self.zombies_dict:
+            att_index_ent  = att_index + self.zombies_dict[entity]
+        else:
+            print(f'Could not find {entity}')
+            return    
+        
+        fst_split_str = '<Simple value="'
+        est_split_str = '" />'
+        
+        if "<Null />" in self.xml_data[att_index_ent]:
+            print("No initial value cannot modify")
+            pass
+        else:
+            initial_split = self.xml_data[att_index_ent].split(fst_split_str,maxsplit = 1)
+            keep_split_front = f'{initial_split[0]}{fst_split_str}'
+            data_split  = initial_split[1].split(est_split_str)[0]
+            if ',' in data_split:
+                # Replace comma with period and convert to float
+                number = float(data_split.replace(',', '.'))
+                result = f"{number * scalar:.2f}".replace('.', ',')
+            else:
+                # Input does not contain a comma, treat as integer
+                number = int(data_split)
+                # Multiply by scalar and convert back to string
+                result = str(int(number * scalar))
+                
+        self.xml_data[att_index_ent] = f'{keep_split_front}{result}{est_split_str}\n'
+
+    def modify_all_zombies(self,attribute,scalar):
+        for zombie in self.zombies:
+            self.modify_attribute(attribute,zombie,scalar)
+            
 
 class modify_mayor(modify_sheet):
     def __init__(self, data):
@@ -309,12 +366,12 @@ class modify_commands(modify_sheet):
         self.find_end_line = '<Simple name="Name" value="Commands" />'
         self.extracolin = False
     
-class modify_map(modify_sheet):
+class modify_mapconditions(modify_sheet):
     def __init__(self, data):
         super().__init__(data)
         
     def data_specific_init(self):
-        self.data_instance = 2
+        self.data_instance = 3
         self.sheet_name    = "mod_ZXRules_MapConditions"
 
 class modify_campaign(modify_sheet):
@@ -325,32 +382,46 @@ class modify_campaign(modify_sheet):
         self.data_instance = 1
         self.sheet_name    = "PlaceHolder"   
 
+class modify_mapthemes(modify_sheet):
+    def __init__(self, data):
+        super().__init__(data)
+        
+    def data_specific_init(self):
+        self.data_instance = 5
+        self.sheet_name    = "mod_ZXRules_MapThemes"
+        self.find_end_line = '<Simple name="Name" value="MapThemes" />'
+        
 #Read In Original Data
-File_Data = Data()
+File_Data = Data(rulesfilename,rulespassword)
 File_Data.unzip_file_with_7zip()
 File_Data.read_zxrules()
-
 
 #Read in New Data
 Entity_Data = modify_entities(File_Data)
 Entity_Data.read_sheet_to_xml()
 Entity_Data.format_xml()
-
-Command_Data = modify_commands(File_Data)
-Command_Data.read_sheet_to_xml()
-Command_Data.format_xml()
-
-
-#Put Data back into original
+Entity_Data.get_all_locations()
+Entity_Data.modify_all_zombies("Life",2)
 Entity_Data.find_start_location()
 Entity_Data.find_end_location()
 File_Data.original_file_data  = Entity_Data.replace_and_insert()
 
+Command_Data = modify_commands(File_Data)
+Command_Data.read_sheet_to_xml()
+Command_Data.format_xml()
 Command_Data.find_start_location()
 Command_Data.find_end_location()
 File_Data.original_file_data  = Command_Data.replace_and_insert()
 
+MapTheme_Data = modify_mapthemes(File_Data)
+MapTheme_Data.read_sheet_to_xml()
+MapTheme_Data.format_xml()
+MapTheme_Data.find_start_location()
+MapTheme_Data.find_end_location()
+File_Data.original_file_data  = MapTheme_Data.replace_and_insert()
 
 #Write and put back data
 File_Data.write_file()
 File_Data.zip_files_with_7zip()
+File_Data.move_file()
+
