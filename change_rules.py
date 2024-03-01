@@ -258,7 +258,7 @@ class modify_entities(modify_sheet):
         self.zombies = ["ZombieWeakA","ZombieWeakB", "ZombieWeakC","ZombieWorkerA",
                         "ZombieWorkerB", "ZombieMediumA","ZombieMediumB","ZombieDressedA",
                         "ZombieStrongA","ZombieGiant","ZombieHarpy","ZombieVenom","ZombieMutant"]
-        self.units   = ["Ranger","Soldier","Sniper","Lucifer",
+        self.units   = ["Ranger","SoldierRegular","Sniper","Lucifer",
                         "Thanatos","Titan","Mutant","HA","HB"]
         
         self.entity_attributes = ["ID","Order","Key","Name","Description","PanelPosition","Nature","Category","Level","Power","CommandRequisite","BuildingRequisite","UpgradeTo","ExperienceNeededToVeteran","Life","Armor","DeffensesLife","LifeRegenFactor","WatchRange","EntityWatchInterval","WatchThroughOpaque","WalkSpeed","RunSpeed","Mass","Height","ActivityAwarenessFactor","BuildingTimeFactor","FactorResourcesReturn","BuildingFrom","BuildingTarget","BuildingMargin","SameBuildingMargin","IgnoreBuildingsMargin","MaxBuildingsAdjacent","MinEmptyCellsAdjacent","CanBeDestroyed","CanBeRepaired","CanBeDisabled","MaxUnitsInside","RangeBonus","MaxInstances","MinColonistsRequisite","CanQueueCommands","CanBeBuiltOnWalls","ColonistType","ColonistUnitNumber","ScorePoints","EngineeringPoints","SciencePoints","EmpirePoints","DisableWithoutEnergy","EnergyTransferRadius","ResourcesStorage","FireDamageFactor","InflamableTime","BurningTime","VenomDamageFactor","Infectable","ExtraUnitsWhenInfected","ConvertibleInZombie","VibrateWhenDamaged","ExplosionOnDestroy","WorkersNeeded","FoodNeeded","EnergyNeeded","GoldCost","WoodCost","StoneCost","IronCost","OilCost","Colonists","WorkersSupply","FoodSupply","EnergySupply","WoodGen","StoneGen","IronGen","OilGen","GoldGen","GoldGenPerColonist","ConvertResourcesIntoGold","ResourcesGenerationTimeFactor","ResourceCollectionType","ResourceCollectionRadius","ResourceCollectionCellValue","Averageunitsperturnestimated","AffectedByEnhancerBuildings","FactorProductionNearBuildings","FactorGoldNearBuildings","FactorFoodNeedNearBuildings","MakeSoldiersVeteran","ShowFullMap","CanEnterInBuildings","CanTravel","CanStop","CanHold","CanPatrol","CanChase","CanJump","CanBeCarried","CanCarryObjects","CanCounterAttack","TimeAniNormal","TimeAniSpecial","TimeAniWalk","TimeAniRun","TimeAniDie","TimeAniWork","TimeAniPrepareWork","TimeAniFly","TimeAniPrepareFly","ReverseAniNormal","ReverseAniSpecial","TimeAniJump","TimeAniThrow","TimeAniInteract","AttackCommand","ExtraAttackCommand","BellWalkingFactor","BellRunningFactor","MinRoamingDistance","MaxRoamingDistance","CellsAwayCommandCenter","Behaviour","CanAvoidOverkill","CanBePulled","DisableDiagonalBuilding","EndGameIfInfected","EndGameIfDestroyed","InfectionNestSize","InfectionNestMaxUnits","TerrainSpeedPercentage","GoldPerKill","EmpirePointsCost","NDaysNewMercenariesInterval","FactorCostMercenaries","FactorPrestige","SoundOnDestroy","SoundOnCreation","SoundOnDie","SoundOnSelected","SoundOnCommandGeneric","SoundOnCommandAttack","SoundOnInfection","SoundOnDesertion","SoundOnPick"]
@@ -288,6 +288,38 @@ class modify_entities(modify_sheet):
                         if strsec in next_line:
                             self.units_dict[units] = index + 3
     
+    def set_attritbute(self, attribute, entity, value):
+        att_index      = self.entity_attributes.index(attribute)
+        
+        if entity in self.units_dict:
+            att_index_ent  = att_index + self.units_dict[entity]
+        elif entity in self.zombies_dict:
+            att_index_ent  = att_index + self.zombies_dict[entity]
+        else:
+            print(f'Could not find {entity}')
+            return    
+        
+        fst_split_str = '<Simple value="'
+        est_split_str = '" />'
+        
+        if "<Null />" in self.xml_data[att_index_ent]:
+            print("No initial value cannot modify")
+            pass
+        else:
+            initial_split = self.xml_data[att_index_ent].split(fst_split_str,maxsplit = 1)
+            keep_split_front = f'{initial_split[0]}{fst_split_str}'
+            data_split  = initial_split[1].split(est_split_str)[0]
+            if ',' in data_split:
+                result = f"{value:.2f}".replace('.', ',')
+            else:
+                # Input does not contain a comma, treat as integer
+                number = int(data_split)
+                # Multiply by scalar and convert back to string
+                result = str(int(value))
+                
+        self.xml_data[att_index_ent] = f'{keep_split_front}{result}{est_split_str}\n'
+        print(f'{entity} {attribute} set to {value}')
+        
     def modify_attribute(self, attribute, entity, scalar):
         att_index      = self.entity_attributes.index(attribute)
         
@@ -324,6 +356,38 @@ class modify_entities(modify_sheet):
     def modify_all_zombies(self,attribute,scalar):
         for zombie in self.zombies:
             self.modify_attribute(attribute,zombie,scalar)
+            
+    def get_attribute(self,attribute,entity):
+        att_index      = self.entity_attributes.index(attribute)
+        
+        if entity in self.units_dict:
+            att_index_ent  = att_index + self.units_dict[entity]
+        elif entity in self.zombies_dict:
+            att_index_ent  = att_index + self.zombies_dict[entity]
+        else:
+            print(f'Could not find {entity}')
+            return    
+        
+        fst_split_str = '<Simple value="'
+        est_split_str = '" />'
+        
+        if "<Null />" in self.xml_data[att_index_ent]:
+            print("No initial value cannot modify")
+            pass
+        else:
+            initial_split = self.xml_data[att_index_ent].split(fst_split_str,maxsplit = 1)
+            keep_split_front = f'{initial_split[0]}{fst_split_str}'
+            data_split  = initial_split[1].split(est_split_str)[0]
+            if ',' in data_split:
+                # Replace comma with period and convert to float
+                number = float(data_split.replace(',', '.'))
+                result = f"{number:.2f}".replace('.', ',')
+            else:
+                # Input does not contain a comma, treat as integer
+                number = int(data_split)
+                # Multiply by scalar and convert back to string
+                result = str(int(number))
+        return result
 
 class modify_mayor(modify_sheet):
     def __init__(self, data):
