@@ -25,7 +25,7 @@ rules_path          = "D:/SteamLibrary/steamapps/common/They Are Billions/ZXRule
 # Edit Map List
 FileNames = ["R06.dxlevel"]
 
-class file_helper():
+class file_helper(): 
     def __init__(self,FileNames,folder_path_clean,folder_path_extract,folder_path_modded,folder_path_zipped):
         #defining locations
         self.folder_path_clean   = folder_path_clean
@@ -66,7 +66,7 @@ class file_helper():
         for root, dirs, files in os.walk(self.folder_path_clean):
             for file in files:
                 #if file in self.FileNames:
-                    if file.endswith(".dxlevel"):
+                    if file.endswith("R01.dxlevel"):
                         try:
                             file_path = os.path.join(root, file)
                             with zipfile.ZipFile(file_path, 'r') as zip_ref:
@@ -121,8 +121,6 @@ class map():
         self.file_path                 = file_path
         self.file_name                 = os.path.basename(file_path)
         
-        
-        
         self.LayerTerrain              = ""
         self.LayerObjects              = ""
         self.LayerRoads                = ""
@@ -139,7 +137,7 @@ class map():
         self.LayerPipesLine            = ""
         self.LayerBeltsLine            = ""
         
-        self.layerTerraindict          = {'AgAA':'g', 
+        self.LayerTerraindict          = {'AgAA':'g', 
                                           'AAEA':'E', 
                                           'AAAC':'C', 
                                           'AAIA':'I', 
@@ -150,9 +148,7 @@ class map():
                                           'AAAA':'A', 
                                           'AQAA':'Q'}
         
-        
-        
-        self.layerTerraindictcolor     = {'g':(0, 0, 0), 
+        self.LayerTerraindictcolor     = {'g':(0, 0, 0), 
                                           'E':(0, 0, 255), 
                                           'C':(0, 0, 0), 
                                           'I':(0, 255, 0), 
@@ -238,6 +234,7 @@ class map():
         self.LayerPipes   = self.split_data_from_line(self.LayerPipes)
         self.LayerBelt    = self.split_data_from_line(self.LayerBelt)
         
+        #self.LayerTerrain = self.clear_layer(self.LayerTerrain)
         self.LayerObjects = self.clear_layer(self.LayerObjects)
         self.LayerRoads   = self.clear_layer(self.LayerRoads)
         self.LayerZombies = self.clear_layer(self.LayerZombies)
@@ -245,23 +242,43 @@ class map():
         self.LayerPipes   = self.clear_layer(self.LayerPipes)
         self.LayerBelt    = self.clear_layer(self.LayerBelt)
         
-        self.LayerObjects = self.rewrite_layer_back(self.LayerObjects,self.LayerObjectsLine)
-        self.LayerRoads   = self.rewrite_layer_back(self.LayerRoads,self.LayerRoadsLine)
-        self.LayerZombies = self.rewrite_layer_back(self.LayerZombies,self.LayerZombiesLine)
-        self.LayerFortress= self.rewrite_layer_back(self.LayerFortress,self.LayerFortressLine)
-        self.LayerPipes   = self.rewrite_layer_back(self.LayerPipes,self.LayerPipesLine)
-        self.LayerBelt    = self.rewrite_layer_back(self.LayerBelt,self.LayerBeltsLine)
+        #self.LayerTerrain = self.draw_on_layer( 7060, 7100, self.LayerTerrain)
+        #self.LayerTerrain = self.draw_on_layer( 64536+8060, 65536+8060, self.LayerTerrain)
+        #Placeholder for editing data
+        #Placeholder for editing data
+        #Placeholder for editing data
+        #Placeholder for editing data
+        #Placeholder for editing data
+        #Placeholder for editing data
         
-        self.layerTerrain = self.LayerTerrain[9104:]
+        #self.rewrite_layer_back(self.LayerTerrain,self.LayerTerrainLine)
+        self.rewrite_layer_back(self.LayerObjects,self.LayerObjectsLine)
+        self.rewrite_layer_back(self.LayerRoads,self.LayerRoadsLine)
+        self.rewrite_layer_back(self.LayerZombies,self.LayerZombiesLine)
+        self.rewrite_layer_back(self.LayerFortress,self.LayerFortressLine)
+        self.rewrite_layer_back(self.LayerPipes,self.LayerPipesLine)
+        self.rewrite_layer_back(self.LayerBelt,self.LayerBeltsLine)
+
+        self.LayerTerrain = self.LayerTerrain[7103:]
         self.LayerTerrain = self.LayerTerrain[:65536]
         self.byte_array_LayerTerrain = base64.b64decode(self.LayerTerrain)
-        wordcount = len(self.byte_array_LayerTerrain) / 4
-        print(wordcount)
+        #wordcount = len(self.byte_array_LayerTerrain) / 4
+        #print(wordcount)
         
         
     def clear_layer(self,layer):
       layer = 'A' * len(layer)
       return layer
+        
+    def draw_on_layer(self,start,stop,layer):
+        
+        layer = list(layer)
+        for i in range(stop-start):
+            layer[i+start] = "I"
+        layer = ''.join(layer)
+        print(layer)
+        return layer
+        
         
     def rewrite_layer_back(self,layer,layerline):
       for begining_split in self.begining_splits:
@@ -285,14 +302,14 @@ class map():
 
         
         #self.transposedata = [self.LayerTerrain[i:i+chunk_size] for i in range(0, len(input_string), chunk_size)]
-        self.transposedata = [self.layerTerrain[i:i+2] for i in range(0, len(self.layerTerrain), 2)]
+        self.transposedata = [self.LayerTerrain[i:i+4] for i in range(0, len(self.LayerTerrain), 4)]
         print(set(self.transposedata))
         
         transposedatacolor = []
-        print(set(self.transposedata))
+        #print(set(self.transposedata))
         j = 0
         for i in range(len(self.transposedata)):
-          if 'EA' in self.transposedata[i]:
+          if 'E' in self.transposedata[i]:
             transposedatacolor.append((0,0,255))
             j += 1
           else:
@@ -375,14 +392,11 @@ class map():
                         self.transposeX += 1
                     self.draw_terrain(screen)  # Call draw_terrain after the value changes
 
-
             # Update the display
             pygame.display.flip()
 
         # Quit Pygame
         pygame.quit()
-    
-    import pygame
 
     def draw_terrain(self, screen):
       screen.fill((0, 0, 0))
@@ -415,10 +429,7 @@ class map():
               y_pos = (j / self.transposeY) * cell_size
               # Blit the rotated rectangle surface onto the main screen
               screen.blit(rotated_rect_surface, (x_pos, y_pos), new_rect)
-      print(x)
 
-              
-              
     def draw_terrain_2(self, screen):
       screen.fill((0, 0, 0))
       cell_size = 8
@@ -439,6 +450,7 @@ class map():
 
 class rules():
   def __init__(self,path):
+    self.path = path
   
   def extract_dxlevel_files(self):
       os.makedirs(self.folder_path_extract, exist_ok=True)
@@ -454,10 +466,10 @@ class rules():
                           print(f"Error extracting file '{file}': {e}")
     
       
-# mapdata = file_helper(FileNames,folder_path_clean,folder_path_extract,folder_path_modded,folder_path_zipped)
-# maplist = mapdata.return_maplist()
-# map1 = map(maplist[0])
-# map1.set_map_theme("DS")
-# map1.write_modification()
-# map1.display_and_edit_with_pygame()
-# mapdata.zip_files_with_7zip()
+mapdata = file_helper(FileNames,folder_path_clean,folder_path_extract,folder_path_modded,folder_path_zipped)
+maplist = mapdata.return_maplist()
+map1 = map(maplist[0])
+map1.set_map_theme("DS")
+map1.write_modification()
+map1.display_and_edit_with_pygame()
+mapdata.zip_files_with_7zip()
