@@ -9,11 +9,12 @@ import sys
 # Get the directory where the script or executable is located
 current_dir = os.path.dirname(os.path.realpath(__file__)).replace('\\', '/')
 default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
+
 rulesfilename = 'ZXRules.dat'
 rulespassword = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
-filenameCampaign = 'ZXCampaign.dat' 
+campaignfilename = 'ZXCampaign.dat' 
 campaignpassword = '1688788812-163327433-2005584771'
-sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
+default_sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
 
 class TextRedirector(object):
     def __init__(self, widget):
@@ -24,10 +25,12 @@ class TextRedirector(object):
         self.widget.insert('end', str)
         self.widget.configure(state='disabled')
         self.widget.see('end') 
-        print("wrting")
+        
 class TAB_GUI():
     def __init__(self):
         self.root = tk.Tk()
+        self.game_directory = ''
+        self.sevenzip_executable =  ''
         self.root.title("TAB Mod Tool")
         self.root.geometry("700x500")  # Width x Height
         self.entry_widgets = []
@@ -86,10 +89,10 @@ class TAB_GUI():
 
             # Adjust the button command based on the title
             if self.file_selector_titles[i] == "Game Directory" or self.file_selector_titles[i] == "Work Directory":
-                button_command = lambda e=entry: select_directory(e)  # Use select_directory for directory selection
+                button_command = lambda e=entry: self.select_directory(e)  # Use select_directory for directory selection
             else:  
                 # For "Data Spread Sheet" or other file selections, use select_path with "file"
-                button_command = lambda e=entry: select_path(e, select="file")
+                button_command = lambda e=entry: self.select_path(e, select="file")
 
             button = ttk.Button(row_frame, text="Browse", command=button_command)
             button.pack(side=tk.RIGHT)
@@ -98,19 +101,41 @@ class TAB_GUI():
         action_buttons_frame = ttk.Frame(self.tab1)
         action_buttons_frame.pack(fill='x', padx=5, pady=10)
 
-        # Define button texts and their corresponding functions in a list of tuples
+        #Define button texts and their corresponding functions in a list of tuples
         button_actions = [
-            ("Load Data", self.load_data),
+            
+            ("Load Default Data", self.load_data),
+            ("Load Modified Data", self.load_data),
             ("Save Data", self.save_data),
             ("Save Back to File", self.save_back_to_file)
         ]
-
+        
         # Create and pack the new action buttons
+        action_buttons_frame = ttk.Frame(self.tab1)
+        action_buttons_frame.pack(fill='x', padx=5, pady=10)
         for text, action in button_actions:
-            button = ttk.Button(action_buttons_frame, text=text, command=action)
+            print(text,action)
+            if text == "Load Modified Data":
+                button = ttk.Button(action_buttons_frame, text=text, command=lambda:self.load_data(True))
+            else:
+                button = ttk.Button(action_buttons_frame, text=text, command=action)
             button.pack(side=tk.LEFT, padx=10, pady=5, expand=True)
 
     def setup_tab_2(self):
+        def update_unit_entry(*args):
+            local_attribute = units_att_var.get()
+            local_unit = units_var.get()
+            if local_attribute and local_unit:
+                self.Entity_Data.get_all_locations()
+                units_entry_var.set(self.Entity_Data.get_attribute(str(local_attribute),str(local_unit))) 
+        
+        def update_zombies_entry(*args):
+            local_attribute = zombies_att_var.get()
+            local_zombie = zombies_var.get()
+            if local_attribute and local_zombie:
+                self.Entity_Data.get_all_locations()
+                zombies_entry_var.set(self.Entity_Data.get_attribute(str(local_attribute),str(local_zombie))) 
+        
         unitframeheader = ttk.Frame(self.tab2)
         unitframeheader.pack(fill='x', padx=5, pady=5)
         attribute_label = ttk.Label(unitframeheader, text="Units")
@@ -159,18 +184,30 @@ class TAB_GUI():
         tab2unitframe.pack(fill='x', padx=5, pady=5)
         tab2zombieframe.pack(fill='x', padx=5, pady=5)
         
-        def update_unit_entry(*args):
-            local_attribute = units_att_var.get()
-            local_unit = units_var.get()
-            if local_attribute and local_unit:
-                self.Entity_Data.get_all_locations()
-                units_entry_var.set(self.Entity_Data.get_attribute(str(local_attribute),str(local_unit))) 
+        
+        
+        # def set_unit_entry(*args):
+        #     local_attribute = units_att_var.get()
+        #     local_unit = units_var.get()
+        #     if local_attribute and local_unit:
+        #         self.Entity_Data.get_all_locations()
+                
+        # def set_zombies_entry(*args):
+        #     local_attribute = zombies_att_var.get()
+        #     local_zombies = zombies_var.get()
+        #     if local_attribute and local_zombies:
+        #         self.Entity_Data.get_all_locations()        
             
         units_att_var.trace_add("write", update_unit_entry)
         units_var.trace_add("write", update_unit_entry)
+        
+        zombies_att_var.trace_add("write", update_zombies_entry)
+        zombies_var.trace_add("write", update_zombies_entry)
             
         button_actions = [
-            ("Load Data", self.load_data),
+            
+            ("Load Default Data", self.load_data),
+            ("Load Modified Data", self.load_data),
             ("Save Data", self.save_data),
             ("Save Back to File", self.save_back_to_file)
         ]
@@ -179,7 +216,11 @@ class TAB_GUI():
         action_buttons_frame = ttk.Frame(self.tab2)
         action_buttons_frame.pack(fill='x', padx=5, pady=10)
         for text, action in button_actions:
-            button = ttk.Button(action_buttons_frame, text=text, command=action)
+            print(text,action)
+            if text == "Load Modified Data":
+                button = ttk.Button(action_buttons_frame, text=text, command=lambda:self.load_data(True))
+            else:
+                button = ttk.Button(action_buttons_frame, text=text, command=action)
             button.pack(side=tk.LEFT, padx=10, pady=5, expand=True)
         
     def setup_tab_3(self):
@@ -252,7 +293,7 @@ class TAB_GUI():
             self.entry_widgets[1].insert(0, current_dir.replace(r"\\",r"/"))
 
         if not self.entry_widgets[3].get():
-            self.entry_widgets[3].insert(3, sevenzip_executable)
+            self.entry_widgets[3].insert(3, default_sevenzip_executable)
 
     def clear_entries(self,entries):
         for entry in entries:
@@ -262,27 +303,100 @@ class TAB_GUI():
         self.save_entries(self.entry_widgets)
         self.root.destroy()
 
-    def load_data(self):
+    def load_data(self,mod = False):
         # Assuming the existence of the Data class and modify_entities function within change_rules
-        File_Data = change_rules.Data(rulesfilename, rulespassword)
-        File_Data.unzip_file_with_7zip()
-        File_Data.read_zxrules()
+        self.game_directory = self.entry_widgets[0].get()
+        self.current_directory = self.entry_widgets[1].get()
+        self.xls_file_path = self.entry_widgets[2].get()
+        self.sevenzip_executable = self.entry_widgets[3].get()
         
-        self.Entity_Data = change_rules.modify_entities(File_Data)
+        # ZXRULES DATA
+        self.File_Data_ZXRules = change_rules.Data(rulesfilename, rulespassword,self.game_directory,self.current_directory,self.sevenzip_executable)
+        self.File_Data_ZXRules.unzip_file_with_7zip()
+        self.File_Data_ZXRules.read_file()
+        
+        self.Entity_Data = change_rules.modify_entities(self.File_Data_ZXRules,self.xls_file_path,mod)
         self.Entity_Data.read_sheet_to_xml()
         self.Entity_Data.format_xml()
+        
+        self.Command_Data = change_rules.modify_commands(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.Command_Data.read_sheet_to_xml()
+        self.Command_Data.format_xml()
+        
+        self.MapTheme_Data = change_rules.modify_mapthemes(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.MapTheme_Data.read_sheet_to_xml()
+        self.MapTheme_Data.format_xml()
+        
+        self.mayor_Data = change_rules.modify_mayor(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.mayor_Data.read_sheet_to_xml()
+        self.mayor_Data.format_xml()
+        
+        #ZXCAMPAIGN DATA
+        self.File_Data_ZXCampaign = change_rules.Data(campaignfilename, campaignpassword,self.game_directory,self.current_directory,self.sevenzip_executable)
+        self.File_Data_ZXCampaign.unzip_file_with_7zip()
+        self.File_Data_ZXCampaign.read_file()
+        
+        self.Wave_Data = change_rules.modify_waves(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.Wave_Data.read_sheet_to_xml()
+        self.Wave_Data.format_xml()    
 
+        self.mission_Data = change_rules.modify_missions(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.mission_Data.read_sheet_to_xml()
+        self.mission_Data.format_xml()    
+
+        self.research_Data = change_rules.modify_research(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.research_Data.read_sheet_to_xml()
+        self.research_Data.format_xml()
+
+        self.researchtree_Data = change_rules.modify_researchtree(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.researchtree_Data.read_sheet_to_xml()
+        self.researchtree_Data.format_xml()    
+        
         # Update the dropdown menus with new values
         self.units['values'] = self.Entity_Data.units
         self.units_att['values'] = self.Entity_Data.entity_attributes
         self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
-    
+        
+        self.zombies['values'] = self.Entity_Data.zombies
+        self.zombies_att['values'] = self.Entity_Data.entity_attributes
+        self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
+        
     def save_data(self):
-        pass
+        self.Entity_Data.find_start_location()
+        self.Entity_Data.find_end_location()
+        self.File_Data_ZXRules.original_file_data = self.Entity_Data.replace_and_insert()
+        self.Command_Data.find_start_location()
+        self.Command_Data.find_end_location()
+        self.File_Data_ZXRules.original_file_data  = self.Command_Data.replace_and_insert()
+        self.MapTheme_Data.find_start_location()
+        self.MapTheme_Data.find_end_location()
+        self.File_Data_ZXRules.original_file_data  = self.MapTheme_Data.replace_and_insert()
+        self.mayor_Data.find_start_location()
+        self.mayor_Data.find_end_location()
+        self.File_Data_ZXRules.original_file_data  = self.mayor_Data.replace_and_insert()
+        self.Wave_Data.find_start_location()
+        self.Wave_Data.find_end_location()
+        self.File_Data_ZXCampaign.original_file_data = self.Wave_Data.replace_and_insert()
+        self.mission_Data.find_start_location()
+        self.mission_Data.find_end_location()
+        self.File_Data_ZXCampaign.original_file_data = self.mission_Data.replace_and_insert()
+        self.research_Data.find_start_location()
+        self.research_Data.find_end_location()
+        self.File_Data_ZXCampaign.original_file_data = self.research_Data.replace_and_insert()
+        self.researchtree_Data.find_start_location()
+        self.researchtree_Data.find_end_location()
+        self.File_Data_ZXCampaign.original_file_data = self.researchtree_Data.replace_and_insert()
+        print("Data Saved")
         
     def save_back_to_file(self):
-        pass
-
+        self.File_Data_ZXRules.write_file()
+        self.File_Data_ZXRules.zip_files_with_7zip()
+        self.File_Data_ZXRules.move_file()
+        
+        self.File_Data_ZXCampaign.write_file()
+        self.File_Data_ZXCampaign.zip_files_with_7zip()
+        self.File_Data_ZXCampaign.move_file()
+        
     def is_valid_number(self,P):
         # Allow for empty input (to be able to clear the field)
         if P == "":
