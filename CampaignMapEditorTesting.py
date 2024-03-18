@@ -8,6 +8,8 @@ import copy
 import base64
 import re
 import pygame_gui
+import json
+
 
 BYTES_PER_WORD = 4
 
@@ -72,20 +74,115 @@ LayerZombies = {
 }
 
 MiscObjects ={"14597207313853823957":"OilSource",
-              "1130949242559706282":"TruckA",
-              "1858993070642015232":"FortressBarLeft",
-              "5955209075099213047":"FortressBarRight",
-              "2617794739528169237":"TensionTowerMediumFlip",
-              "4533866769353242870":"TensionTowerMedium",
-              "2342596987766548617":"TensionTowerHighFlip",
-              "3359149191582161849":"TensionTowerHigh"}
+              "1130949242559706282" :"TruckA",
+              "1858993070642015232" :"FortressBarLeft",
+              "5955209075099213047" :"FortressBarRight",
+              "2617794739528169237" :"TensionTowerMediumFlip",
+              "4533866769353242870" :"TensionTowerMedium",
+              "2342596987766548617" :"TensionTowerHighFlip",
+              "3359149191582161849" :"TensionTowerHigh"}
 
+# Formatting the dictionary for better alignment
+map_dict = {
+    "Hidden Valley":              "R01.dxlevel",
+    "The Crossroads":             "R02.dxlevel",
+    "The Hunters Meadow":         "R03.dxlevel",
+    "The Mines of the Raven":     "R04.dxlevel",
+    "The Coast of Bones":         "R05.dxlevel",
+    "The Narrow Pass":            "R06.dxlevel",
+    "The Lowlands":               "R07.dxlevel",
+    "Cape Storm":                 "R08.dxlevel",
+    "The Lands of the Giant":     "R09.dxlevel",
+    "The Frozen Lake":            "R10.dxlevel",
+    "The Lonely Forest":          "R11.dxlevel",
+    "The Nest of the Harpy":      "R12.dxlevel",
+    "The Valley of Death":        "R13.dxlevel",
+    "The Noxious Swamp":          "R14.dxlevel",
+    "The Oasis":                  "R15.dxlevel",
+    "The Villa of Terror":        "R16.dxlevel",
+    "The Resistance":             "R17.dxlevel",
+    "The Broken Land":            "R18.dxlevel",
+    "El Dorado":                  "R19.dxlevel",
+    "The Forbidden Forest":       "R20.dxlevel",
+    "The Wasteland of the Giants":"R21.dxlevel",
+    "The Highlands":              "R22.dxlevel",
+    "The Goddess of Destiny":     "REND.dxlevel"
+}
 
-Ro5         = "R05.dxlevel"
+knownBonusEntsNice = {
+		'877281890077159856': 'AdvancedFarm',
+		'6574833960938744452': 'AdvancedQuarry',
+		'8857617519118038933': 'AdvancedUnitCenter',
+		'1621013738552581284': 'Ballista',
+		'5036892806562984913': 'Bank',
+		'7736771959523609744': 'BunkerHouse',
+		'3153977018683405164': 'CommandCenter',
+		'1886362466923065378': 'CottageHouse',
+		'3441286325348372349': 'DoomBuildingLarge',
+		'293812117068830615': 'DoomBuildingMedium',
+		'8702552346733362645': 'DoomBuildingSmall',
+		'3581872206503330117': 'EnergyWoodTower',
+		'782017986530656774': 'Executor',
+		'7709119203238641805': 'Farm',
+		'13910727858942983852': 'FishermanCottage',
+		'14944401376001533849': 'Foundry',
+		'18390252716895796075': 'GateStone',
+		'8865737575894196495': 'GateWood',
+		'1313209346733379187': 'Heater',
+		'706050193872584208': 'HunterCottage',
+		'2357834872970637499': 'InfectedNestBig',
+		'9352245195514814739': 'LookoutTower',
+		'5507471650351043258': 'Market',
+		'12238914991741132226': 'MillIron',
+		'869623577388046954': 'MillWood',
+		'15110117066074335339': 'OilPlatform',
+		'12703689153551509267': 'PowerPlant',
+		'4012164333689948063': 'Quarry',
+		'10083572309367106690': 'RadarTower',
+		'6362162278734053601': 'Refinery',
+		'6484699889268923215': 'Sawmill',
+		'7671446590444700196': 'ShockingTower',
+		'8537111584635793949': 'Shuttle',
+		'17945382406851792953': 'SoldiersCenter',
+		'17389931916361639317': 'StoneHouse',
+		'11153810025740407576': 'StoneWorkshop',
+		'17301104073651661026': 'TentHouse',
+		'2562764233779101744': 'TrapBlades',
+		'3791255408779778776': 'TrapMine',
+		'17047104131874756555': 'TrapPetrol',
+		'14605210100319949981': 'TrapStakes',
+		'7684920400170855714': 'WallStone',
+		'16980392503923994773': 'WallWood',
+		'13640414733981798546': 'WareHouse',
+		'16597317129181541225': 'WatchTowerStone',
+		'11206202837167900273': 'WatchTowerWood',
+		'2943963846200136989': 'WoodWorkshop',
+		'16241120227094315491': 'Lucifer',
+		'11462509610414451330': 'Ranger',
+		'12735209386004068058': 'Raven',
+		'6536008488763521408': 'Sniper',
+		'8122295062332983407': 'SoldierRegular',
+		'13687916016325214957': 'Thanatos',
+		'15625692077980454078': 'Titan',
+		'3208367948340991825': 'Worker_A',
+		'13977466055377379252': 'Worker_B',
+		'8049232565215955390': 'WorkerRunner_A',
+		'7404423790615406394': 'WorkerRunner_B',
+	}
+
+# Let's format it into a string with aligned text
+formatted_map_dict = "\n".join([f'"{key}":{value.rjust(30 - len(key))},' for key, value in map_dict.items()])
+
+Ro5         = "R01.dxlevel"
 map_path    = "D:/SteamLibrary/steamapps/common/They Are Billions/ZXGame_Data/Levels/Extracted"
 save_path   = "D:/SteamLibrary/steamapps/common/They Are Billions/ZXGame_Data/Levels/Modded"
 zipped_path = "D:/SteamLibrary/steamapps/common/They Are Billions/ZXGame_Data/Levels/Rezipped"
 
+class map_entities():
+    def __init__(self,data,value):
+        self.data      = data
+        self.unique_id = value
+        
 class map():
     def __init__(self,path,save_path,zipped_path,mapname):
         self.file = os.path.join(path,mapname)
@@ -95,6 +192,7 @@ class map():
         self.parse()
         self.get_indcies()
         self.pull_layer_strings()
+        self.pull_entity_data()
         
     def parse(self):
         self.file_data = []
@@ -168,6 +266,51 @@ class map():
         self.file_data[self.LayerTerrainLine] = self.data_LayerTerrain
         self.file_data[self.LayerObjectsLine] = self.data_LayerObjects
         self.file_data[self.LayerZombiesLine] = self.data_LayerZombies
+    
+    def pull_entity_data(self):
+        self.entities  = {}
+        current_entity = ""
+        start = False
+        complex_count = 0
+        for index,line in enumerate(self.file_data):
+            #Start Stop Conditions
+            if "<Items>"in line:
+                start = True
+            if '<Complex name="Extension" type="ZX.GameSystems.ZXLevelExtension, TheyAreBillions">' in line:
+                break
+            #Main loop
+            if start == True:
+                #keep track of where you are data wise
+                if '<Complex'  in line:
+                    if complex_count == 0:
+                        self.entities[index] = {}
+                        current_entity = index
+                    complex_count += 1
+                elif '</Complex>' in line:
+                    complex_count -= 1
+                    
+                #type checking
+                if current_entity and '<Complex type="ZX.Components.CRailWay'in line:
+                    self.entities[current_entity]["isRailway"] = True
+                elif '<Complex type="ZX.Entities.CommandCenter' in line:
+                   self.entities[current_entity]["isCommandCenter"] = True    
+                
+                #data grabbing
+                if current_entity and '<Simple name=' in line:
+                    simplenameid = line.split('<Simple name=')[1]
+                    simplenameid, value = simplenameid.split('value="',maxsplit = 1)
+                    simplenameid = simplenameid.strip().replace('"','')
+                    if " />" in value:
+                        value = value.split(" />")[0]
+                        
+                    if "Position" in simplenameid:
+                        valuex,valuey = value.split(";",maxsplit = 1)
+                        self.entities[current_entity]["valuey"] = float(valuex.replace('"',''))
+                        self.entities[current_entity]["valuex"] = float(valuey.replace('"',''))
+                    self.entities[current_entity][simplenameid] = value.strip().replace('"','')
+                  
+        with open('C:/Users/Josh/Desktop/MODS/Scripts/Entities.json', 'w') as f:
+            json.dump(self.entities, f, indent=4)
         
     def write_to_file(self):
        try:
@@ -225,42 +368,68 @@ class map():
         print(f'{self.file_name} Successfully Rezipped')
 
 class YourGameClass:
-    def __init__(self, map):
+    def __init__(self, current_map):
         pygame.init()
-        self.map = map
-        self.data_size = map.data_size
+        self.current_map = current_map
+        self.data_size  = current_map.data_size
         self.ui_width = 150
         self.screen = pygame.display.set_mode((self.data_size*5 + self.ui_width, self.data_size*5), pygame.RESIZABLE)  # Added width for checkboxes
         self.init_toolbar_vars()
         self.define_toolbar()
         self.init_coniditions()
     
+    def set_map(self):
+        curent_map_name = self.map_select_dropdown.selected_option
+        current_map_readablename     = map_dict[curent_map_name]
+        
+        current_map= map(map_path,save_path,zipped_path,current_map_readablename)
+        
+        self.current_map         = current_map
+        self.data_size           = current_map.data_size
+        self.data64_LayerTerrain = self.current_map.layers[0]
+        self.data64_LayerObjects = self.current_map.layers[1]
+        self.data64_LayerZombies = self.current_map.layers[3]
+        self.all_entities        = self.current_map.entities
+    
     def define_toolbar(self):
         self.layer_objects_options = ''
         
         if self.layer_select_option == 'terrain':
-            self.layer_objects_options = [name for key, name in LayerObjects.items()]
-            self.layer_option = 'None'
-        elif self.layer_select_option == 'objects':
             self.layer_objects_options = [name for key, name in LayerTerrain.items()]
             self.layer_option = 'Earth'
+        elif self.layer_select_option == 'objects':
+            self.layer_objects_options = [name for key, name in LayerObjects.items()]
+            self.layer_option = 'None'
         elif self.layer_select_option == "zombies":
             self.layer_objects_options = [name for key, name in LayerZombies.items()]
             self.layer_option = 'ZombieNone'
         
         self.manager                = pygame_gui.UIManager((self.screen.get_width() + 100, self.screen.get_height() * 5))
-        self.terrain_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 20), (self.ui_width, 30)),text='Terrain',manager=self.manager)
-        self.objects_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 60), (self.ui_width, 30)),text='Objects',manager=self.manager)
-        self.zombies_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 100), (self.ui_width, 30)),text='Zombies',manager=self.manager)
-        self.grid_checkbox          = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 140), (self.ui_width, 30)),text='Grid',manager=self.manager)
-        self.save_button            = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 340), (self.ui_width, 30)),text='Save',manager=self.manager)
-        self.zoom_slider            = pygame_gui.elements.UIHorizontalSlider(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 300), (self.ui_width, 30)),start_value=100,value_range=(50, 200),manager=self.manager)
-        self.layer_select_dropdown  = pygame_gui.elements.UIDropDownMenu(options_list=self.layer_select_options,starting_option=self.layer_select_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 180), (self.ui_width, 30)),manager=self.manager)
-        self.layer_objects_dropdown = pygame_gui.elements.UIDropDownMenu(options_list=self.layer_objects_options,starting_option=self.layer_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 220), (self.ui_width, 30)),manager=self.manager)
-        self.brushes_dropdown       = pygame_gui.elements.UIDropDownMenu(options_list=self.brush_options,starting_option=self.brush_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 260), (self.ui_width, 30)),manager=self.manager)
+        self.map_select_dropdown    = pygame_gui.elements.UIDropDownMenu(options_list=self.map_selection_options,starting_option=self.map_selection_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 0), (self.ui_width, 30)),manager=self.manager)
+        self.terrain_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 40), (self.ui_width, 30)),text='Terrain',manager=self.manager)
+        self.objects_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 80), (self.ui_width, 30)),text='Objects',manager=self.manager)
+        self.zombies_checkbox       = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 120), (self.ui_width, 30)),text='Zombies',manager=self.manager)
+        self.grid_checkbox          = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 160), (self.ui_width, 30)),text='Grid',manager=self.manager)
+        self.save_button            = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 360), (self.ui_width, 30)),text='Save',manager=self.manager)
+        self.zoom_slider            = pygame_gui.elements.UIHorizontalSlider(relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 320), (self.ui_width, 30)),start_value=100,value_range=(50, 200),manager=self.manager)
+        self.layer_select_dropdown  = pygame_gui.elements.UIDropDownMenu(options_list=self.layer_select_options,starting_option=self.layer_select_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 200), (self.ui_width, 30)),manager=self.manager)
+        self.layer_objects_dropdown = pygame_gui.elements.UIDropDownMenu(options_list=self.layer_objects_options,starting_option=self.layer_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 240), (self.ui_width, 30)),manager=self.manager)
+        self.brushes_dropdown       = pygame_gui.elements.UIDropDownMenu(options_list=self.brush_options,starting_option=self.brush_option,relative_rect=pygame.Rect((self.screen.get_width()-self.ui_width, 280), (self.ui_width, 30)),manager=self.manager)
         
     def init_toolbar_vars(self):
-        self.layer_visibility      = {'terrain': True, 'objects': True, 'grid' : True,'zombies':True}  # Example layer visibility dict
+        self.layer_visibility      = {'terrain': True, 
+                                      'objects': True, 
+                                      'grid' : True,
+                                      'zombies':True,
+                                      'railroad':True,
+                                      'commandcenter':True} 
+        
+        self.map_selection_options =  []
+        
+        for keys,items in map_dict.items():
+            self.map_selection_options.append(keys)
+            
+        self.map_selection_option  =  'Hidden Valley'
         
         self.layer_select_options  = ['terrain','objects','zombies']
         self.layer_select_option   = 'terrain'
@@ -269,6 +438,7 @@ class YourGameClass:
         self.zoom_level            = 100  # Default zoom level
         self.layer_option          = 'None'
         self.brush_option          = 'Single'
+
     
     def init_coniditions(self):
         self.mouse_button_held_down = False
@@ -350,6 +520,8 @@ class YourGameClass:
         elif event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
             if event.ui_element == self.layer_select_dropdown:
                 self.on_option_selection_change()
+            if event.ui_element == self.map_select_dropdown:
+                self.on_map_selection_change()
                 
         elif event.type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
             if event.ui_element == self.zoom_slider:
@@ -364,30 +536,18 @@ class YourGameClass:
             
         elif event.type == pygame.MOUSEBUTTONUP:
             self.mouse_button_held_down = False
-
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
-                self.scroll_x -= 10  # Scroll left
-            elif event.key == pygame.K_RIGHT:
-                self.scroll_x += 10  # Scroll right
-            elif event.key == pygame.K_UP:
-                self.scroll_y -= 10  # Scroll up
-            elif event.key == pygame.K_DOWN:
-                self.scroll_y += 10  # Scroll down
             
-            # Clamp the scroll values to prevent scrolling beyond the map
-            self.scroll_x = max(0, min(self.scroll_x, self.max_scroll_x))
-            self.scroll_y = max(0, min(self.scroll_y, self.max_scroll_y))
-        
         self.manager.process_events(event)
         return True
 
     def build_image(self):
         clock = pygame.time.Clock()
         running = True
-        self.data64_LayerTerrain = self.map.layers[0]
-        self.data64_LayerObjects = self.map.layers[1]
-        self.data64_LayerZombies = self.map.layers[3]
+        
+        self.data64_LayerTerrain = self.current_map.layers[0]
+        self.data64_LayerObjects = self.current_map.layers[1]
+        self.data64_LayerZombies = self.current_map.layers[3]
+        self.all_entities        = self.current_map.entities
         
         while running:
             self.time_delta = clock.tick(60)/1000.0
@@ -408,11 +568,60 @@ class YourGameClass:
                 self.map_array_to_image(self.data64_LayerZombies, LayerZombies)
             if self.layer_visibility['grid']:  # Check if the grid should be drawn
                 self.draw_grid()
+            if self.layer_visibility['railroad']:
+                self.draw_railroad()
+            if self.layer_visibility['commandcenter']:
+                self.draw_command_center()
             
             self.manager.update(self.time_delta)
             self.manager.draw_ui(self.screen)
             pygame.display.update()
     
+    def draw_command_center(self):
+        scale_factor = self.zoom_level / 100.0
+        cell_size = int(5 * scale_factor)
+        for key, item in self.all_entities.items():
+            if "isCommandCenter" in self.all_entities[key]:
+                x = self.all_entities[key]["valuex"]
+                y = self.all_entities[key]["valuey"]
+                if self.all_entities[key]["Size"]:
+                    temp = self.all_entities[key]["Size"]
+                    tempfront, tempback = temp.split(";", maxsplit=1)
+                    tempfront = int(tempfront)  # Convert to int to use in range
+                    tempback = int(tempback)    # Convert to int to use in range
+
+                    # Draw a grid of squares based on tempfront and tempback
+                    for i in range(tempfront):  # Iterate over tempfront
+                        for j in range(tempback):  # Iterate over tempback
+                            # Calculate new x and y for each square
+                            new_x = x + i - tempfront/2 
+                            new_y = y + j - tempback/2 
+                            # Draw the square at the new position
+                            pygame.draw.rect(self.screen, (255,192,203), pygame.Rect(new_x * cell_size, new_y * cell_size, cell_size, cell_size))
+
+    def draw_railroad(self):
+        scale_factor = self.zoom_level / 100.0
+        cell_size = int(5 * scale_factor)
+        for key, item in self.all_entities.items():
+            if "isRailway" in self.all_entities[key]:
+                x = self.all_entities[key]["valuex"] -1
+                y = self.all_entities[key]["valuey"] -1
+                if self.all_entities[key]["Size"] != "1;1":
+                    temp = self.all_entities[key]["Size"]
+                    tempfront, tempback = temp.split(";", maxsplit=1)
+                    tempfront = int(tempfront)  # Convert to int to use in range
+                    tempback = int(tempback)    # Convert to int to use in range
+                    
+                    for i in range(tempfront):  # Iterate over tempfront
+                        for j in range(tempback):  # Iterate over tempback
+                            # Calculate new x and y for each square
+                            new_x = (x + i) - tempfront/2 + 1
+                            new_y = (y + j) - tempback/2 + 1
+                            # Draw the square at the new position
+                            pygame.draw.rect(self.screen, (255,255,255), pygame.Rect(new_x * cell_size, new_y * cell_size, cell_size, cell_size))
+                else:
+                    pygame.draw.rect(self.screen, (255,255,255), pygame.Rect((x+.5) * cell_size, (y+.5) * cell_size, cell_size, cell_size))
+        
     def map_array_to_image(self, data_array, color_dict, color_default=(0, 0, 0)):
         scale_factor = self.zoom_level / 100.0  # Calculate scale factor based on zoom level
         cell_size = int(5 * scale_factor)  # Apply scale factor to cell size
@@ -425,8 +634,8 @@ class YourGameClass:
                 if the_var != "None" and the_var != "ZombieNone":
                     the_color = colors.get(the_var, color_default)
                     # Adjust draw position by scroll offsets
-                    pygame.draw.rect(self.screen, the_color, pygame.Rect(x * cell_size - self.scroll_x, y * cell_size - self.scroll_y, cell_size, cell_size))
-
+                    pygame.draw.rect(self.screen, the_color, pygame.Rect(x * cell_size, y * cell_size, cell_size, cell_size))
+                    
     def draw_grid(self):
         scale_factor = self.zoom_level / 100.0
         cell_size = int(5 * scale_factor)  # Adjust cell size based on zoom level
@@ -448,13 +657,17 @@ class YourGameClass:
         self.layer_select_option = self.layer_select_dropdown.selected_option
         self.define_toolbar()
     
+    def on_map_selection_change(self):
+        self.map_selection_option = self.map_select_dropdown.selected_option
+        self.set_map()
+    
     def save_file(self):
-        self.map.layers[0] = self.data64_LayerTerrain
-        self.map.layers[1] = self.data64_LayerObjects
-        self.map.layers[3] = self.data64_LayerZombies
-        self.map.push_layer_strings()
-        self.map.write_to_file()
-        self.map.zip_files_with_7zip()
+        self.current_map.layers[0] = self.data64_LayerTerrain
+        self.current_map.layers[1] = self.data64_LayerObjects
+        self.current_map.layers[3] = self.data64_LayerZombies
+        self.current_map.push_layer_strings()
+        self.current_map.write_to_file()
+        self.current_map.zip_files_with_7zip()
     
 r05 = map(map_path,save_path,zipped_path,Ro5)
 windowclass = YourGameClass(r05)

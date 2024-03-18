@@ -1,18 +1,11 @@
 password = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
-import csv
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom.minidom import parseString
 import subprocess
 import os
-import zipfile
 import shutil
-import copy
-import base64
 import pandas as pd
-import re
 import shutil
-
-xls_file_path = 'C:/Users/Josh/Downloads/Rebalanced Mod.xlsx'
 
 rulesfilename = 'ZXRules.dat'
 rulespassword = '2025656990-254722460-3866451362025656990-254722460-386645136334454FADSFASDF45345'
@@ -538,6 +531,7 @@ class modify_research(modify_sheet):
         self.data_instance = 4
         removal = ['"SoldierRegular','"Soldier',["Soldier_Shot","Soldier_Trained","Soldier_Die","Soldier_What","Soldier_Yes","Soldier_Attack"]]
         self.replaces.remove(removal)
+        self.replaces.remove(["ZombieHarpy","Harpy",["PLACEHOLDER"]])
         self.sheet_name    = "mod_ZXCampaign_Research"
         self.find_end_line = '<Simple name="Name" value="Researchs" />'
 
@@ -552,74 +546,5 @@ class modify_researchtree(modify_sheet):
         self.sheet_name    = "mod_ZXCampaign_ResearchTree"
         self.find_end_line = '<Simple name="Name" value="ResearchTree" />'
         
-# #Read In Original Data
-# File_Data = Data(rulesfilename,rulespassword)
-# File_Data.unzip_file_with_7zip()
-# File_Data.read_file()
 
-# cFile_Data = Data(filenameCampaign,campaignpassword)
-# cFile_Data.unzip_file_with_7zip()
-# cFile_Data.read_file()
-
-# Wave_Data = modify_waves(cFile_Data)
-# Wave_Data.read_sheet_to_xml()
-# Wave_Data.format_xml()    
-# Wave_Data.find_start_location()
-# Wave_Data.find_end_location()
-# cFile_Data.original_file_data = Wave_Data.replace_and_insert()
-
-# mission_Data = modify_missions(cFile_Data)
-# mission_Data.read_sheet_to_xml()
-# mission_Data.format_xml()    
-# mission_Data.find_start_location()
-# mission_Data.find_end_location()
-# cFile_Data.original_file_data = mission_Data.replace_and_insert()
-
-# research_Data = modify_research(cFile_Data)
-# research_Data.read_sheet_to_xml()
-# research_Data.format_xml()    
-# research_Data.find_start_location()
-# research_Data.find_end_location()
-# cFile_Data.original_file_data = research_Data.replace_and_insert()
-
-# researchtree_Data = modify_researchtree(cFile_Data)
-# researchtree_Data.read_sheet_to_xml()
-# researchtree_Data.format_xml()    
-# researchtree_Data.find_start_location()
-# researchtree_Data.find_end_location()
-# cFile_Data.original_file_data = researchtree_Data.replace_and_insert()
-
-# cFile_Data.write_file()
-# cFile_Data.zip_files_with_7zip()
-# cFile_Data.move_file()
-
-
-# #Read in New Data
-# Entity_Data = modify_entities(File_Data)
-# Entity_Data.read_sheet_to_xml()
-# Entity_Data.format_xml()
-# Entity_Data.get_all_locations()
-# Entity_Data.modify_all_zombies("Life",2)
-# Entity_Data.find_start_location()
-# Entity_Data.find_end_location()
-# File_Data.original_file_data  = Entity_Data.replace_and_insert()
-
-# Command_Data = modify_commands(File_Data)
-# Command_Data.read_sheet_to_xml()
-# Command_Data.format_xml()
-# Command_Data.find_start_location()
-# Command_Data.find_end_location()
-# File_Data.original_file_data  = Command_Data.replace_and_insert()
-
-# MapTheme_Data = modify_mapthemes(File_Data)
-# MapTheme_Data.read_sheet_to_xml()
-# MapTheme_Data.format_xml()
-# MapTheme_Data.find_start_location()
-# MapTheme_Data.find_end_location()
-# File_Data.original_file_data  = MapTheme_Data.replace_and_insert()
-
-# #Write and put back data
-# File_Data.write_file()
-# File_Data.zip_files_with_7zip()
-# File_Data.move_file()
 
