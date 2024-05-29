@@ -422,6 +422,18 @@ class modify_entities(modify_sheet):
                 except:
                     result = data_split
         return result
+    
+class modify_globals(modify_sheet):
+    def __init__(self, data, xls_file_path,modded = False):
+        super().__init__(data,xls_file_path,modded)
+        
+    def data_specific_init(self):
+        self.data_instance = 3
+        removal = ['"SoldierRegular','"Soldier',["Soldier_Shot","Soldier_Trained","Soldier_Die","Soldier_What","Soldier_Yes","Soldier_Attack"]]
+        self.replaces.remove(removal)
+        self.sheet_name    = "mod_ZXRules_Globals"
+        self.find_end_line = '<Simple name="Name" value="Global" />'
+        
 
 class modify_mayor(modify_sheet):
     def __init__(self, data, xls_file_path,modded = False):
@@ -496,7 +508,7 @@ class modify_heros(modify_sheet):
     def data_specific_init(self):
         self.data_instance = 1
         self.sheet_name    = "mod_ZXCampaign_Heros"
-        self.find_end_line = '<Simple name="Name" value="HeroPerks" />" />'
+        self.find_end_line = '<Simple name="Name" value="HeroPerks" />'
 
 class modify_waves(modify_sheet):
     def __init__(self, data, xls_file_path,modded = False):
@@ -546,5 +558,6 @@ class modify_researchtree(modify_sheet):
         self.sheet_name    = "mod_ZXCampaign_ResearchTree"
         self.find_end_line = '<Simple name="Name" value="ResearchTree" />'
         
+
 
 

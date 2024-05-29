@@ -66,7 +66,7 @@ class file_helper():
         for root, dirs, files in os.walk(self.folder_path_clean):
             for file in files:
                 #if file in self.FileNames:
-                    if file.endswith("R01.dxlevel"):
+                    #if file.endswith("R05.dxlevel"):
                         try:
                             file_path = os.path.join(root, file)
                             with zipfile.ZipFile(file_path, 'r') as zip_ref:

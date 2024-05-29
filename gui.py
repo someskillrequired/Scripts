@@ -2,9 +2,14 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 from tkinter import filedialog
+from multiprocessing import Process
+import CampaignMapEditorTesting as cme
 import os
 import change_rules
 import sys
+import subprocess
+from pathlib import Path
+import shutil
 
 # Get the directory where the script or executable is located
 current_dir = os.path.dirname(os.path.realpath(__file__)).replace('\\', '/')
@@ -41,7 +46,7 @@ class TAB_GUI():
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)  # Ensure save function is called on closing
         self.setup_console()
         self.root.mainloop()
-        
+    
     def setup_menu_bar(self):
         self.menu_bar = tk.Menu(self.root)
         self.root.config(menu=self.menu_bar)
@@ -64,15 +69,54 @@ class TAB_GUI():
         self.tab5 = ttk.Frame(self.notebook)
         
         self.notebook.add(self.tab1, text='Setup')
-        self.notebook.add(self.tab2, text='Unit/Zombie Attributes')
-        self.notebook.add(self.tab3, text='Campaign Waves')
-        self.notebook.add(self.tab4, text='') 
-        self.notebook.add(self.tab5, text='')
+        #self.notebook.add(self.tab2, text='Unit/Zombie Attributes')
+        self.notebook.add(self.tab3, text='Campaign Editor')
+        #self.notebook.add(self.tab4, text='') 
+        #self.notebook.add(self.tab5, text='')
         
         self.setup_tab_1()
-        self.setup_tab_2()
+        #self.setup_tab_2()
         self.setup_tab_3()
 
+    def launch_cme(self):
+        Ro5          = "R01.dxlevel"
+
+        
+        dir_names = [
+                     "clean",
+                     "custom_maps_unzipped_with_changes",
+                     "custom_maps_unzipped_no_changes",
+                     "custom_maps"
+                     ]
+        
+        game_directory = self.entry_widgets[0].get()
+        
+        first_setup = False
+        map_path = game_directory + r"/ZXGame_Data/Levels/"
+        for dir_name in dir_names:
+            dir_path = Path(map_path,dir_name)
+            print(dir_path)
+            if not dir_path.exists():
+                print("here")
+                dir_path.mkdir(parents=True, exist_ok=True)
+                if dir_name == "clean":
+                    first_setup = True
+        if first_setup:
+            #extract standard maps to the clean folder
+            sevenzip_executable = self.entry_widgets[3].get()
+            for root,dirs, files in os.walk(map_path):
+                for file in files:
+                    # Check if the file ends with .dxlevel
+                    if file.endswith(".dxlevel"):
+                        file_path = Path(root, file)
+                        shutil.copy2(file_path, Path(map_path,"clean"))
+                        
+            return "Operation completed."
+                
+        
+        game_thread = Process(target=cme.launch_from_gui, args=(Ro5,map_path,sevenzip_executable))
+        game_thread.start()
+    
     def setup_tab_1(self):
         self.file_selector_titles = ['Game Directory', 'Work Directory','Data Spread Sheet','7zip']
         # Modification for creating buttons, ensuring "Work Directory" uses a directory dialog
@@ -104,10 +148,10 @@ class TAB_GUI():
         #Define button texts and their corresponding functions in a list of tuples
         button_actions = [
             
-            ("Load Default Data", self.load_data),
-            ("Load Modified Data", self.load_data),
-            ("Save Data", self.save_data),
-            ("Save Back to File", self.save_back_to_file)
+            ("Load Default Data", self.quick_load),
+            ("Load Modified Data", self.quick_load),
+            #("Save Data", self.save_data),
+            #("Save Back to File", self.save_back_to_file)
         ]
         
         # Create and pack the new action buttons
@@ -116,9 +160,9 @@ class TAB_GUI():
         for text, action in button_actions:
             print(text,action)
             if text == "Load Modified Data":
-                button = ttk.Button(action_buttons_frame, text=text, command=lambda:self.load_data(True))
+                button = ttk.Button(action_buttons_frame, text=text, command=lambda:self.quick_load(True))
             else:
-                button = ttk.Button(action_buttons_frame, text=text, command=action)
+                button = ttk.Button(action_buttons_frame, text=text, command=lambda:self.quick_load(False))
             button.pack(side=tk.LEFT, padx=10, pady=5, expand=True)
 
     def setup_tab_2(self):
@@ -184,8 +228,6 @@ class TAB_GUI():
         tab2unitframe.pack(fill='x', padx=5, pady=5)
         tab2zombieframe.pack(fill='x', padx=5, pady=5)
         
-        
-        
         # def set_unit_entry(*args):
         #     local_attribute = units_att_var.get()
         #     local_unit = units_var.get()
@@ -227,27 +269,33 @@ class TAB_GUI():
         attribute_frame = ttk.Frame(self.tab3)
         attribute_frame.pack(fill='x', padx=5, pady=5)
 
-        # Label for the "Attribute" dropdown
-        attribute_label = ttk.Label(attribute_frame, text="Attribute")
-        attribute_label.pack(side=tk.LEFT)
+        # # Label for the "Attribute" dropdown
+        # attribute_label = ttk.Label(attribute_frame, text="Attribute")
+        # attribute_label.pack(side=tk.LEFT)
 
-        # "Attribute" dropdown
-        attribute_var = tk.StringVar()
-        self.attribute_dropdown = ttk.Combobox(attribute_frame, textvariable=attribute_var, values=["Load Data First"])  # Placeholder values
-        self.attribute_dropdown.pack(side=tk.LEFT, padx=5)
+        # # "Attribute" dropdown
+        # attribute_var = tk.StringVar()
+        # self.attribute_dropdown = ttk.Combobox(attribute_frame, textvariable=attribute_var, values=["Load Data First"])  # Placeholder values
+        # self.attribute_dropdown.pack(side=tk.LEFT, padx=5)
 
-        # Frame for the "Scalar" entry
-        self.scalar_frame = ttk.Frame(self.tab3)
-        self.scalar_frame.pack(fill='x', padx=5, pady=5)
+        # # Frame for the "Scalar" entry
+        # self.scalar_frame = ttk.Frame(self.tab3)
+        # self.scalar_frame.pack(fill='x', padx=5, pady=5)
 
-        # Label for the "Scalar" entry
-        scalar_label = ttk.Label(self.scalar_frame, text="Scalar")
-        scalar_label.pack(side=tk.LEFT)
+        # # Label for the "Scalar" entry
+        # scalar_label = ttk.Label(self.scalar_frame, text="Scalar")
+        # scalar_label.pack(side=tk.LEFT)
 
-        # "Scalar" entry box
-        scalar_var = tk.StringVar()
-        self.scalar_entry = ttk.Entry(self.scalar_frame, textvariable=scalar_var, validate='key', validatecommand=(self.root.register(self.is_valid_number), '%P'))
-        self.scalar_entry.pack(side=tk.LEFT, padx=5)
+        # # "Scalar" entry box
+        # scalar_var = tk.StringVar()
+        # self.scalar_entry = ttk.Entry(self.scalar_frame, textvariable=scalar_var, validate='key', validatecommand=(self.root.register(self.is_valid_number), '%P'))
+        # self.scalar_entry.pack(side=tk.LEFT, padx=5)
+        
+        # Create and pack the new action buttons
+        action_buttons_frame = ttk.Frame(self.tab3)
+        action_buttons_frame.pack(fill='x', padx=5, pady=10)
+        button = ttk.Button(action_buttons_frame, text="Launch Campaign Map Editor", command= self.launch_cme)
+        button.pack(side=tk.LEFT, padx=10, pady=5, expand=True)
     
     def show_about(self):
         messagebox.showinfo("About", "TAB MOD\nVersion 1.0\nAuthor SomeSkillRequired")
@@ -303,6 +351,11 @@ class TAB_GUI():
         self.save_entries(self.entry_widgets)
         self.root.destroy()
 
+    def quick_load(self, mod = False):
+        self.load_data(mod)
+        self.save_data()
+        self.save_back_to_file()
+   
     def load_data(self,mod = False):
         # Assuming the existence of the Data class and modify_entities function within change_rules
         self.game_directory = self.entry_widgets[0].get()
@@ -318,6 +371,10 @@ class TAB_GUI():
         self.Entity_Data = change_rules.modify_entities(self.File_Data_ZXRules,self.xls_file_path,mod)
         self.Entity_Data.read_sheet_to_xml()
         self.Entity_Data.format_xml()
+        
+        self.globals_Data = change_rules.modify_globals(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.globals_Data.read_sheet_to_xml()
+        self.globals_Data.format_xml()
         
         self.Command_Data = change_rules.modify_commands(self.File_Data_ZXRules,self.xls_file_path,mod)
         self.Command_Data.read_sheet_to_xml()
@@ -342,7 +399,11 @@ class TAB_GUI():
 
         self.mission_Data = change_rules.modify_missions(self.File_Data_ZXCampaign,self.xls_file_path,mod)
         self.mission_Data.read_sheet_to_xml()
-        self.mission_Data.format_xml()    
+        self.mission_Data.format_xml()
+        
+        self.hero_Data = change_rules.modify_heros(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.hero_Data.read_sheet_to_xml()
+        self.hero_Data.format_xml()  
 
         self.research_Data = change_rules.modify_research(self.File_Data_ZXCampaign,self.xls_file_path,mod)
         self.research_Data.read_sheet_to_xml()
@@ -353,36 +414,51 @@ class TAB_GUI():
         self.researchtree_Data.format_xml()    
         
         # Update the dropdown menus with new values
-        self.units['values'] = self.Entity_Data.units
-        self.units_att['values'] = self.Entity_Data.entity_attributes
-        self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
+        # self.units['values'] = self.Entity_Data.units
+        # self.units_att['values'] = self.Entity_Data.entity_attributes
+        # self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
         
-        self.zombies['values'] = self.Entity_Data.zombies
-        self.zombies_att['values'] = self.Entity_Data.entity_attributes
-        self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
+        # self.zombies['values'] = self.Entity_Data.zombies
+        # self.zombies_att['values'] = self.Entity_Data.entity_attributes
+        # self.attribute_dropdown['values'] = self.Entity_Data.entity_attributes
         
     def save_data(self):
         self.Entity_Data.find_start_location()
         self.Entity_Data.find_end_location()
         self.File_Data_ZXRules.original_file_data = self.Entity_Data.replace_and_insert()
+        
         self.Command_Data.find_start_location()
         self.Command_Data.find_end_location()
         self.File_Data_ZXRules.original_file_data  = self.Command_Data.replace_and_insert()
+        
+        self.globals_Data.find_start_location()
+        self.globals_Data.find_end_location()
+        self.File_Data_ZXRules.original_file_data  = self.globals_Data.replace_and_insert()
+        
         self.MapTheme_Data.find_start_location()
         self.MapTheme_Data.find_end_location()
         self.File_Data_ZXRules.original_file_data  = self.MapTheme_Data.replace_and_insert()
+        
         self.mayor_Data.find_start_location()
         self.mayor_Data.find_end_location()
         self.File_Data_ZXRules.original_file_data  = self.mayor_Data.replace_and_insert()
+        
         self.Wave_Data.find_start_location()
         self.Wave_Data.find_end_location()
         self.File_Data_ZXCampaign.original_file_data = self.Wave_Data.replace_and_insert()
+        
         self.mission_Data.find_start_location()
         self.mission_Data.find_end_location()
         self.File_Data_ZXCampaign.original_file_data = self.mission_Data.replace_and_insert()
+        
+        self.hero_Data.find_start_location()
+        self.hero_Data.find_end_location()
+        self.File_Data_ZXCampaign.original_file_data = self.hero_Data.replace_and_insert()
+        
         self.research_Data.find_start_location()
         self.research_Data.find_end_location()
         self.File_Data_ZXCampaign.original_file_data = self.research_Data.replace_and_insert()
+        
         self.researchtree_Data.find_start_location()
         self.researchtree_Data.find_end_location()
         self.File_Data_ZXCampaign.original_file_data = self.researchtree_Data.replace_and_insert()
@@ -431,5 +507,6 @@ class TAB_GUI():
         message_window['yscrollcommand'] = scrollbar.set
 
         sys.stdout = TextRedirector(message_window)
-    
-TAB_UI = TAB_GUI()
+
+if __name__ == '__main__':    
+    TAB_UI = TAB_GUI()
