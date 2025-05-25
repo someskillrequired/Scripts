@@ -109,9 +109,17 @@ class modify_sheet():
         self.find_end_line  = "None"
         self.replaces       = "None"
         self.data_instance  = 0
+        xls_file = pd.ExcelFile(xls_file_path)
+        sheets = xls_file.sheet_names
         self.__init_vars__()
         self.data_specific_init()
-        self.modded_sheet()
+
+        if self.sheet_name in sheets:
+            
+            self.modded_sheet()
+            self.valid_sheet = True
+        else:
+            self.valid_sheet = False
     
     def __init_vars__(self):
         #there are 7 instances of this line which point to each set of data to replace
@@ -152,7 +160,7 @@ class modify_sheet():
         for index, line in enumerate(self.original_data):
             if self.find_line in line:
                 self.index.append(index)
-                
+                  
     def find_end_location(self):
         for index, line in enumerate(self.original_data):
             if self.find_end_line in line:
@@ -185,6 +193,7 @@ class modify_sheet():
         for _, row in df.iterrows():
             item = SubElement(items, 'Item')
             first_cell_value = format_cell_value(row.iloc[0])
+            
             # Ensure the first cell is processed correctly, including "None"
             if first_cell_value is None:
                 SubElement(item, 'Simple', attrib={'value': "None"})
@@ -238,13 +247,7 @@ class modify_sheet():
             if "&amp;amp;" in temp_string:
                 temp_string = temp_string.replace("&amp;amp;","&amp;")
             if ';" />' in temp_string and self.removendcolin:
-                temp_string = temp_string.replace(';" />','" />')
-            if 'Rainy;"' in temp_string:
-                temp_string = temp_string.replace('Rainy;"','Rainy"')
-            if 'Snowy"' in temp_string:
-                temp_string = temp_string.replace('Snowy"','Snowy;"')
-            if 'SlowTerrain"' in temp_string:
-                temp_string = temp_string.replace('SlowTerrain"','SlowTerrain;"')        
+                temp_string = temp_string.replace(';" />','" />')   
             new_lines.append(temp_string)
             
         self.xml_data = new_lines[1:]
@@ -269,8 +272,6 @@ class modify_sheet():
     def recreate_text(self):
         pass
     
-    def write_to_file(self):
-        pass
         
 class modify_entities(modify_sheet):
     def __init__(self, data, xls_file_path,modded = False):
@@ -434,7 +435,6 @@ class modify_globals(modify_sheet):
         self.sheet_name    = "mod_ZXRules_Globals"
         self.find_end_line = '<Simple name="Name" value="Global" />'
         
-
 class modify_mayor(modify_sheet):
     def __init__(self, data, xls_file_path,modded = False):
         super().__init__(data,xls_file_path,modded)
@@ -481,8 +481,11 @@ class modify_mapconditions(modify_sheet):
         super().__init__(data,xls_file_path,modded)
         
     def data_specific_init(self):
-        self.data_instance = 3
+        self.data_instance = 4
+        self.replaces = [['ResourceCollectionCellValue','ResourceGeneration',["PLACEHOLDER"]]]
         self.sheet_name    = "mod_ZXRules_MapConditions"
+        self.find_end_line = '<Simple name="Name" value="MapConditions" />'
+        self.extracolin = False
 
 class modify_campaign(modify_sheet):
     def __init__(self, data, xls_file_path,modded = False):

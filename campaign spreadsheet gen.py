@@ -4,7 +4,7 @@ from openpyxl import Workbook
 # Your data string (truncated for brevity; replace ... with your actual data)
 import campaignstring
 
-data_string = campaignstring.researchtree
+data_string = campaignstring.globals
 
 # Manually parsing the string to extract column names and row data
 #headers = ["ID", "IDRestrictedTo", "Row", "Col", "Default", "Level", "PerkType", "Name", "Mods", "Description"]

@@ -4,6 +4,7 @@ from tkinter import messagebox
 from tkinter import filedialog
 from multiprocessing import Process
 import CampaignMapEditorTesting as cme
+import concurrent.futures
 import os
 import change_rules
 import sys
@@ -20,6 +21,9 @@ rulespassword = '2025656990-254722460-3866451362025656990-254722460-386645136334
 campaignfilename = 'ZXCampaign.dat' 
 campaignpassword = '1688788812-163327433-2005584771'
 default_sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
+
+def run_cme_process(map_path, game_directory, sevenzip_executable):
+    cme.launch_from_gui(map_path, game_directory, sevenzip_executable)
 
 class TextRedirector(object):
     def __init__(self, widget):
@@ -79,9 +83,7 @@ class TAB_GUI():
         self.setup_tab_3()
 
     def launch_cme(self):
-        Ro5          = "R01.dxlevel"
-
-        
+        Ro1          = "R01.dxlevel"
         dir_names = [
                      "clean",
                      "custom_maps_unzipped_with_changes",
@@ -95,15 +97,13 @@ class TAB_GUI():
         map_path = game_directory + r"/ZXGame_Data/Levels/"
         for dir_name in dir_names:
             dir_path = Path(map_path,dir_name)
-            print(dir_path)
             if not dir_path.exists():
-                print("here")
                 dir_path.mkdir(parents=True, exist_ok=True)
                 if dir_name == "clean":
                     first_setup = True
         if first_setup:
             #extract standard maps to the clean folder
-            sevenzip_executable = self.entry_widgets[3].get()
+            
             for root,dirs, files in os.walk(map_path):
                 for file in files:
                     # Check if the file ends with .dxlevel
@@ -112,10 +112,13 @@ class TAB_GUI():
                         shutil.copy2(file_path, Path(map_path,"clean"))
                         
             return "Operation completed."
-                
         
-        game_thread = Process(target=cme.launch_from_gui, args=(Ro5,map_path,sevenzip_executable))
-        game_thread.start()
+        sevenzip_executable = self.entry_widgets[3].get()
+        # game_thread = Process(target=run_cme_process, args=(os.path.join(map_path, Ro1), game_directory, sevenzip_executable))
+        # game_thread.start()
+        #cme.launch_from_gui(os.path.join(map_path + Ro1),game_directory,sevenzip_executable)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            future = executor.submit(run_cme_process, os.path.join(map_path, Ro1), game_directory, sevenzip_executable)
     
     def setup_tab_1(self):
         self.file_selector_titles = ['Game Directory', 'Work Directory','Data Spread Sheet','7zip']
@@ -507,6 +510,9 @@ class TAB_GUI():
         message_window['yscrollcommand'] = scrollbar.set
 
         sys.stdout = TextRedirector(message_window)
+
+
+
 
 if __name__ == '__main__':    
     TAB_UI = TAB_GUI()
