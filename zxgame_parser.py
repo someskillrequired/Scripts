@@ -71,8 +71,8 @@ if __name__ == "__main__":
     json_file = 'entity_dict2.json'  # Replace with your desired JSON output file path
     folder_path = r'D:\SteamLibrary\steamapps\common\TABOUTPUT\ZXGame_Data\Levels\Extracted'
     
-    entity_dict = parse_xml_to_dict(xml_file)
-    sorted_entity_dict = alphabetize_dict_by_name(entity_dict)
+    entity_dict          = parse_xml_to_dict(xml_file)
+    sorted_entity_dict   = alphabetize_dict_by_name(entity_dict)
     enriched_entity_dict = search_folder_for_entries(folder_path, sorted_entity_dict)
     
     write_dict_to_json(enriched_entity_dict, json_file)

@@ -1,7 +1,11 @@
 import xml.etree.ElementTree as ET
 import json
 import re
+import os
+import subprocess
 
+default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
+default_sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
 
 
 def check_string_match(level1_dict, match_string):
@@ -12,9 +16,9 @@ class ZXGame_Parser():
         self.file_name          = 'ZXGame.dxprj'
         self.file_name_unzipped = 'ZXGame.dxprj'
         self.file_name_modded   = 'ZXGame_modded.dxprj'
-        
-        self.file_path          = game_directory + '//' + self.file_name
-        self.file_path_unzipped = temp_directory + '//' + self.file_name
+        self.temp_directory     = temp_directory
+        self.file_path                 = game_directory + '//' + self.file_name
+        self.file_path_unzipped        = temp_directory + '//' + self.file_name
         self.file_path_unzipped_modded = temp_directory + '//' +  self.file_name_modded 
         self.LevelZeroProcessing()
         
@@ -29,7 +33,10 @@ class ZXGame_Parser():
         self.LevelFiveProcessing()
         #level 6 processing looking through the frames clip data and pulling out the following attributes sizex sizey 
         self.LevelSixProcessing()
-        
+        #
+        self.image_mapping()
+        self.print_json()
+
     def unzip_file(self):
         pass
     
@@ -49,14 +56,13 @@ class ZXGame_Parser():
         with open(self.file_path_unzipped_modded, 'w', encoding='utf-8') as file:
             file.writelines(lines)
         
-        return image_dict
+        
     
     def LevelZeroProcessing(self):
         self.Reconquest_id = '4104776980463107687'
 
         self.Reconquest_sub_dicts = {'frames':'<Dictionary name="Frames" keyType="System.Int32, mscorlib" valueType="DXVision.DXProjectFrame, DXVision">',
                                      'objects':'<Dictionary name="Objects" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectObject, DXVision">'}
-        
         
         self.Level1 =   {
                         'Categories'      : {'string': '    <Collection name="Categories" elementType="DXVision.DXProjectCategory, DXVision">\r\n'                                       },
@@ -76,6 +82,17 @@ class ZXGame_Parser():
         line_count = 0
         
         # Pull all lines for dictionary starts and count total lines
+        if not os.path.exists(self.file_path_unzipped):
+            command = [
+                default_sevenzip_executable,
+                'x',  # Extract files with full paths
+                '-y',  # Assume Yes on all queries (overwrite files without prompting)
+                f'-o{self.temp_directory}',  # Output directory
+                self.file_path  # The path of the archive to extract
+            ]
+            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
         with open(self.file_path_unzipped, 'rb') as file:
             for index, line in enumerate(file):
                 line = line.decode('utf-8')
@@ -352,6 +369,40 @@ class ZXGame_Parser():
                     for name, value in matches:
                         data_dict[item][name] = value
 
+    def image_mapping(self):
+        lines = []
+        with open(self.file_path_unzipped, 'rb') as file:
+            for line in file:
+                lines.append(line.decode('utf-8'))
+
+        image_dict = {}
+        for index, line in enumerate(lines):
+            if '<Complex name="Image" type="DXVision.DXImageFile, DXVision">' in line:
+                for subline in lines[index+1:]:
+                    
+                    if '<Complex name="Image" type="DXVision.DXImageFile, DXVision">' in subline:
+                        break
+
+                    if '<Simple name="FileName"' in subline:
+                        match = re.search(r'<Simple\s+name="FileName"[^>]*\svalue="([^"]+)"', subline)
+                        image_dict[str(match.group(1))] = {}
+
+                    else:
+                        submatch = re.search(r'<Simple\s+name="([^"]+)"\s+value="([^"]+)"', subline)
+                        if submatch:
+                            image_dict[str(match.group(1))][str(submatch.group(1))] = str(submatch.group(2))
+
+        reversed_image_dict = {}
+        for item in image_dict:
+            if 'ID' in image_dict[item]:
+                reversed_image_dict[image_dict[item]['ID']] = item
+
+        self.Level1['my_image_dict']    = image_dict
+        self.Level1['my_reversed_dict'] = reversed_image_dict
+
+        return image_dict
+    
+    
     def print_json(self):
         with open('ZXGame.json', 'w', encoding='utf-8') as json_file:
-            json.dump(self.Level1, json_file, ensure_ascii=False, indent=4)
+            json.dump(self.Level1, json_file, ensure_ascii=False, indent=2)
