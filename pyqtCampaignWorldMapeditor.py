@@ -12,10 +12,13 @@ import copy
 from pyqt_ZXGAME_Processor import ZXGame_Parser
 from PyQt5.QtWidgets import QShortcut
 import re
-import pdb
 
-map_file = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions/ZXGame_Data/Images/WorldMap/Atlas1_HQ.dat'
-map_file_atlas = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions/ZXGame_Data/Images/WorldMap/Atlas1_HQ/Atlas1_HQ.dxatlas'
+base_location = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions/ZXGame_Data/Images'
+
+map_file             = f'{base_location}/WorldMap/Atlas1_HQ.dat'
+map_file_atlas       = f'{base_location}/WorldMap/Atlas1_HQ/Atlas1_HQ.dxatlas'
+interface_file       = f'{base_location}/Interface/Atlas1_HQ.dat'
+interface_file_atlas = f'{base_location}/Interface/Atlas1_HQ/Atlas1_HQ.dxatlas' 
 
 class ImageHandler:
     def __init__(self, file, x1, y1, x2, y2, entire_image=None, rotate=0):
@@ -64,8 +67,6 @@ class ImageHandler:
 
     def get_cut_image(self, entire_image, x1, y1, x2, y2):
         """Crop a portion from the entire image"""
-        print(f"Cropping image: ({x1}, {y1}) to ({x2}, {y2})")
-        print(f"Pixmap size: {entire_image.width()}x{entire_image.height()}")
         # Ensure coordinates are within bounds
         x1 = max(0, int(x1))
         y1 = max(0, int(y1))
@@ -75,7 +76,6 @@ class ImageHandler:
         y2 = y1 + y2
         # Ensure valid dimensions
         if x2 <= x1 or y2 <= y1:
-            print(f"Invalid crop dimensions: {x1},{y1} to {x2},{y2}")
             return entire_image.copy()  # fallback to full image
             
         return entire_image.copy(x1, y1, x2 - x1, y2 - y1)
@@ -94,55 +94,6 @@ class ImageHandler:
             Qt.IgnoreAspectRatio, 
             Qt.SmoothTransformation
         )
-
-# class ImageHandler:
-#     def __init__(self, file, x1, y1, x2, y2, entire_image=None, rotate=0):
-#         self.file = file
-#         self.x1 = x1
-#         self.y1 = y1
-#         self.x2 = x2
-#         self.y2 = y2
-#         self.rotate = rotate
-
-#         if entire_image is None:
-#             self.entire_image = self.pull_image_data(file)
-#         else:
-#             self.entire_image = entire_image
-
-#         self.cut_image = self.get_cut_image(self.entire_image, x1, y1, x2, y2)
-#         self.final_image = self.cut_image
-
-#     def pull_image_data(self, file):
-#         image = Image.open(file)
-#         image = image.convert("RGBA")
-
-#         # Apply brightness filter
-#         enhancer = ImageEnhance.Brightness(image)
-#         image = enhancer.enhance(1.25)
-
-#         # Rotate the image if required
-#         if self.rotate != 0:
-#             image = image.rotate(self.rotate, expand=True)
-
-#         data = np.array(image)
-#         height, width, channel = data.shape
-#         qimage = QImage(data.data, width, height, width * channel, QImage.Format_RGBA8888)
-#         if qimage.isNull():
-#             raise ValueError("Failed to load image data. Unsupported format or corrupted file.")
-#         return QPixmap.fromImage(qimage)
-
-#     def get_cut_image(self, entire_image, x1, y1, x2, y2):
-#         print(f"Cropping image: ({x1}, {y1}) to ({x2}, {y2})")
-#         print(f"Pixmap size: {entire_image.width()}x{entire_image.height()}")
-#         return entire_image.copy(int(x1), int(y1), int(x2 - x1), int(y2 - y1))
-
-#     def scale_image(self, target_width, target_height):
-#         #target_height = int(target_height/2)
-#         #target_width = int(target_width/2)
-
-#         self.target_width = target_width
-#         self.target_height = target_height
-#         self.final_image = self.final_image.scaled(target_width, target_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
 class MainWindow(QMainWindow):
     def __init__(self, image_dict, zxgame_file):
@@ -189,14 +140,9 @@ class MainWindow(QMainWindow):
         pass
         for item in self.image_dict:
             if item != "@Map":
-                try:
-                    self.item = QGraphicsPixmapItem(self.image_dict[item]['Image'].final_image)
-                    self.item.setPos(float(self.image_dict[item]['Map_Details']['X']), float(self.image_dict[item]['Map_Details']['Y']))
-                    self.scene.addItem(self.item)
-                    # pdb.set_trace()
-                    # return
-                except:
-                    pdb.set_trace()
+                self.item = QGraphicsPixmapItem(self.image_dict[item]['Image'].final_image)
+                self.item.setPos(float(self.image_dict[item]['Map_Details']['X']), float(self.image_dict[item]['Map_Details']['Y']))
+                self.scene.addItem(self.item)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -337,8 +283,7 @@ class MainWindow(QMainWindow):
     def handle_delete_key(self):
         self.image_dict = self.zxgame_file.update_file(self.image_dict)
 
-def atlas_parsing(file_path) -> dict:
-    atlas_dict = {}
+def atlas_parsing(atlas_dict,file_path) -> dict:
     with open(file_path) as file:
         lines = file.readlines()
 
@@ -363,9 +308,12 @@ def main():
     
     zxgame_file = ZXGame_Parser(r'C:\Program Files (x86)\Steam\steamapps\common\They Are Billions',r'C:\Program Files (x86)\Steam\steamapps\common\They Are Billions\temp')
     Level1 = zxgame_file.Level1
-    image_atlas = atlas_parsing(map_file_atlas)
+    image_atlas = {}
+    image_atlas = atlas_parsing(image_atlas,map_file_atlas)
+    image_atlas = atlas_parsing(image_atlas,interface_file_atlas)
 
-    entire_image = ImageHandler(map_file, 0, 0, 1, 1).entire_image
+    map_entire_image = ImageHandler(map_file, 0, 0, 1, 1).entire_image
+    interface_entire_image =ImageHandler(interface_file, 0, 0, 1, 1).entire_image
 
     map_data_location = Level1['Clips']['Data']['4104776980463107687']['objects']
     map_detail_location = Level1['Clips']['Data']['4104776980463107687']['frames']
@@ -381,17 +329,22 @@ def main():
                     if map_data_location[image]['ID'] in map_detail_location:
                         my_image_dict[image] = {}
                         my_image_dict[image]['Map_Details'] = map_detail_location[map_data_location[image]['ID']]
-                        
-                        temp = image_atlas[Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1]]
+                        image_location = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[0].rsplit('\\',1)[1]
+                        image_name = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1]
+                        temp = image_atlas[image_name]
+                        if image_location == 'WorldMap':
+                            full_image = ImageHandler(map_file,int(temp['x']),int(temp['y']),int(temp['w']),int(temp['h']),map_entire_image)
 
-                        full_image = ImageHandler(map_file,int(temp['x']),int(temp['y']),int(temp['w']),int(temp['h']),entire_image)
-
+                        elif image_location == 'Interface':
+                            full_image = ImageHandler(interface_file,int(temp['x']),int(temp['y']),int(temp['w']),int(temp['h']),interface_entire_image)
+                        else:
+                            print(f'image location {image_location} not found')
+                            break
+                            
                         full_image.scale_image(int(float(my_image_dict[image]['Map_Details']['Width'])),int(float(my_image_dict[image]['Map_Details']['Height'])))
                         my_image_dict[image]['Image'] = full_image
                         my_image_dict[image]['image_name'] = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1]
-                        # if my_image_dict[image]['image_name'] == 'IconForestE.png':
-                        #     break
-                            
+
                     else:
                         print('not on map')
                 else:
@@ -403,30 +356,6 @@ def main():
             no_image_id.append(image)
 
 
-
-    # item_dict = {}
-    # for image in map_data_location.keys():
-    #     idimage = map_data_location[image].get('IDImage', None)
-    #     if idimage:
-    #         map_details = map_detail_location.get(map_data_location[image]['ID'], None)
-    #         if map_details:
-    #             local_image_name = map_data_location[image].get('IDImage', None)
-
-
-    #             image_name = id_image.get(local_image_name, None)
-    #             global_image = image_dict.get(image_name, None)
-                
-    #             if global_image:
-
-    #                 item_dict[image] = {}
-    #                 Height = map_details.get('Height', None)
-    #                 Width = map_details.get('Width', None)
-
-    #                 global_image.scale_image(int(float(Width)), int(float(Height)))
-    #                 item_dict[image]['Image']       = global_image
-    #                 item_dict[image]['Map_Details'] = map_details
-
-    #main_window = MainWindow(item_dict,zxgame_file)
     main_window = MainWindow(my_image_dict,zxgame_file)
     main_window.show()
     sys.exit(app.exec_())
