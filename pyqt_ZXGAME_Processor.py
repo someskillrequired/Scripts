@@ -3,37 +3,43 @@ import json
 import re
 import os
 import subprocess
+from collections import defaultdict
 
 default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
 default_sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
 
+# Precompile regex patterns for better performance
+SIMPLE_PATTERN = re.compile(r'<Simple name="([^"]+)" value="([^"]+)"')
+ID_PATTERN = re.compile(r'<Simple value="(\d+)"')
+NAME_PATTERN = re.compile(r'<Simple name="Name" value="([^"]+)"')
+FILE_PATTERN = re.compile(r'<Simple name="FileName" value="([^"]+)"')
+IMAGE_FILE_PATTERN = re.compile(r'<Simple\s+name="FileName"[^>]*\svalue="([^"]+)"')
+IMAGE_ATTR_PATTERN = re.compile(r'<Simple\s+name="([^"]+)"\s+value="([^"]+)"')
 
 def check_string_match(level1_dict, match_string):
-    return next((key for key, value in level1_dict.items() if value.get('string') == match_string), None)
+    for key, value in level1_dict.items():
+        if value.get('string') == match_string:
+            return key
+    return None
 
 class ZXGame_Parser():
-    def __init__(self,game_directory,temp_directory):
-        self.file_name          = 'ZXGame.dxprj'
+    def __init__(self, game_directory, temp_directory):
+        self.file_name = 'ZXGame.dxprj'
         self.file_name_unzipped = 'ZXGame.dxprj'
-        self.file_name_modded   = 'ZXGame_modded.dxprj'
-        self.temp_directory     = temp_directory
-        self.file_path                 = game_directory + '//' + self.file_name
-        self.file_path_unzipped        = temp_directory + '//' + self.file_name
-        self.file_path_unzipped_modded = temp_directory + '//' +  self.file_name_modded 
-        self.LevelZeroProcessing()
+        self.file_name_modded = 'ZXGame_modded.dxprj'
+        self.temp_directory = temp_directory
+        self.file_path = os.path.join(game_directory, self.file_name)
+        self.file_path_unzipped = os.path.join(temp_directory, self.file_name)
+        self.file_path_unzipped_modded = os.path.join(temp_directory, self.file_name_modded)
         
+        # Initialize all processing methods
+        self.LevelZeroProcessing()
         self.LevelOneProcessing()
-        #Level 2 pull 'Levels' Data
         self.LevelTwoProcessing()
-        #Level 3 initial pull of 'clips' data
         self.LevelThreeProcessing()
-        #level 4 subpull of 'objects' from clips data
         self.LevelFourProcessing()
-        #level 5 subpull of 'frames' from clips data
         self.LevelFiveProcessing()
-        #level 6 processing looking through the frames clip data and pulling out the following attributes sizex sizey 
         self.LevelSixProcessing()
-        #
         self.image_mapping()
         self.print_json()
 
@@ -43,65 +49,108 @@ class ZXGame_Parser():
     def zip_file(self):
         pass    
 
-    def update_file(self,image_dict):
+    def save_file(self, image_dict):
+        # Read the file with original line endings preserved
         with open(self.file_path_unzipped, 'r', encoding='utf-8') as file:
             lines = file.readlines()
+            print(lines[0])
         
-        for item in image_dict:
-            if image_dict[item]['Map_Details'].get('MODIFIED',False) == True:
-                image_dict[item]['Map_Details']['MODIFIED'] = False
-                temp_item = image_dict[item]['Map_Details']
-                lines[temp_item['StartLine']:temp_item['EndLine']+1] = temp_item['template']
+        # We'll track how much each operation shifts subsequent line numbers
+        line_shift = 0
+        # Store operations sorted by original start line
+        operations = []
         
-        with open(self.file_path_unzipped_modded, 'w', encoding='utf-8') as file:
+        # Collect all operations first
+        for item in image_dict.values():
+            if 'Map_Details' not in item or 'Modified' not in item['Map_Details']:
+                continue
+                
+            details = item['Map_Details']
+            operations.append({
+                'type': details['Modified'],
+                'start': details['StartLine'],
+                'end': details['EndLine'],
+                'template': details.get('template', []),
+                'content': details.get('content', [])
+            })
+        
+        # Sort operations by start line (process earliest first)
+        operations.sort(key=lambda x: x['start'])
+        
+        # Process each operation, adjusting for previous shifts
+        for op in operations:
+            adjusted_start = op['start'] + line_shift
+            adjusted_end = op['end'] + line_shift
+            
+            if op['type'] == 'Deleted':
+                # Verify the range is valid
+                if 0 <= adjusted_start < len(lines) and 0 <= adjusted_end < len(lines):
+                    del lines[adjusted_start:adjusted_end+1]
+                    line_shift -= (op['end'] - op['start'] + 1)
+            
+            elif op['type'] == 'Moved':
+                if 0 <= adjusted_start < len(lines) and 0 <= adjusted_end < len(lines):
+                    # Ensure consistent line endings
+                    template = [line.rstrip('\r\n') + '\n' for line in op['template']]
+                    lines[adjusted_start:adjusted_end+1] = template
+            
+            elif op['type'] == 'Added':
+                if 0 <= adjusted_start <= len(lines):
+                    # Ensure consistent line endings
+                    content = [line.rstrip('\r\n') + '\n' for line in op['content']]
+                    lines[adjusted_start:adjusted_start] = content
+                    line_shift += len(content)
+        
+        # Write the main file with original line endings
+        with open(self.file_path_unzipped, 'w', encoding='utf-8') as file:
             file.writelines(lines)
-        
-        
+
+        return image_dict
     
     def LevelZeroProcessing(self):
         self.Reconquest_id = '4104776980463107687'
-
-        self.Reconquest_sub_dicts = {'frames':'<Dictionary name="Frames" keyType="System.Int32, mscorlib" valueType="DXVision.DXProjectFrame, DXVision">',
-                                     'objects':'<Dictionary name="Objects" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectObject, DXVision">'}
+        self.Reconquest_sub_dicts = {
+            'frames': '<Dictionary name="Frames" keyType="System.Int32, mscorlib" valueType="DXVision.DXProjectFrame, DXVision">',
+            'objects': '<Dictionary name="Objects" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectObject, DXVision">'
+        }
         
-        self.Level1 =   {
-                        'Categories'      : {'string': '    <Collection name="Categories" elementType="DXVision.DXProjectCategory, DXVision">\r\n'                                       },
-                        'PencilColors'    : {'string': '    <Dictionary name="PencilColors" keyType="System.String, mscorlib" valueType="System.Drawing.Color, System.Drawing">\r\n'     },
-                        'ImageGallery'    : {'string': '    <Dictionary name="ImageGallery" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectImage, DXVision">\r\n'        },
-                        'Clips'           : {'string': '    <Dictionary name="Clips" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectClip, DXVision">\r\n'                },
-                        'TextTemplates'   : {'string': '    <Dictionary name="TextTemplates" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectTextTemplate, DXVision">\r\n'},
-                        'Fonts'           : {'string': '    <Dictionary name="Fonts" keyType="System.String, mscorlib" valueType="System.Byte[], mscorlib">\r\n'                         },
-                        'GIFs'            : {'string': '    <Dictionary name="GIFs" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectGIF, DXVision">\r\n'                  },
-                        'Sprites'         : {'string': '    <Dictionary name="Sprites" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectSprite, DXVision">\r\n'            },
-                        'AVIs'            : {'string': '    <Dictionary name="AVIs" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectAVI, DXVision">\r\n'                  },
-                        'EntityTemplates' : {'string': '    <Dictionary name="EntityTemplates" keyType="System.UInt64, mscorlib" valueType="DXVision.DXEntityTemplate, DXVision">\r\n'   },
-                        'Levels'          : {'string': '    <Dictionary name="Levels" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectLevel, DXVision">\r\n'              }
-                    }
+        self.Level1 = {
+            'Categories': {'string': '    <Collection name="Categories" elementType="DXVision.DXProjectCategory, DXVision">\r\n'},
+            'PencilColors': {'string': '    <Dictionary name="PencilColors" keyType="System.String, mscorlib" valueType="System.Drawing.Color, System.Drawing">\r\n'},
+            'ImageGallery': {'string': '    <Dictionary name="ImageGallery" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectImage, DXVision">\r\n'},
+            'Clips': {'string': '    <Dictionary name="Clips" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectClip, DXVision">\r\n'},
+            'TextTemplates': {'string': '    <Dictionary name="TextTemplates" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectTextTemplate, DXVision">\r\n'},
+            'Fonts': {'string': '    <Dictionary name="Fonts" keyType="System.String, mscorlib" valueType="System.Byte[], mscorlib">\r\n'},
+            'GIFs': {'string': '    <Dictionary name="GIFs" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectGIF, DXVision">\r\n'},
+            'Sprites': {'string': '    <Dictionary name="Sprites" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectSprite, DXVision">\r\n'},
+            'AVIs': {'string': '    <Dictionary name="AVIs" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectAVI, DXVision">\r\n'},
+            'EntityTemplates': {'string': '    <Dictionary name="EntityTemplates" keyType="System.UInt64, mscorlib" valueType="DXVision.DXEntityTemplate, DXVision">\r\n'},
+            'Levels': {'string': '    <Dictionary name="Levels" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectLevel, DXVision">\r\n'}
+        }
     
     def LevelOneProcessing(self):
-        line_count = 0
-        
-        # Pull all lines for dictionary starts and count total lines
-        if not os.path.exists(self.file_path_unzipped):
+        force = False
+        if not os.path.exists(self.file_path_unzipped) or force == True:
             command = [
                 default_sevenzip_executable,
-                'x',  # Extract files with full paths
-                '-y',  # Assume Yes on all queries (overwrite files without prompting)
-                f'-o{self.temp_directory}',  # Output directory
-                self.file_path  # The path of the archive to extract
+                'x',
+                '-y',
+                f'-o{self.temp_directory}',
+                self.file_path
             ]
             subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-
+        line_count = 0
         with open(self.file_path_unzipped, 'rb') as file:
             for index, line in enumerate(file):
                 line = line.decode('utf-8')
                 match = check_string_match(self.Level1, line)
-                if match is not None:
+                
+                if match:
                     self.Level1[match]['StartLine'] = index
+
                 line_count += 1
         
-        # Use the next key in the list to find where you ended
         keys = list(self.Level1.keys())
         for i in range(len(keys) - 1, 0, -1):
             current_key = keys[i]
@@ -109,12 +158,10 @@ class ZXGame_Parser():
             if 'StartLine' in self.Level1[current_key]:
                 self.Level1[previous_key]['EndLine'] = self.Level1[current_key]['StartLine'] - 1
         
-        # Update the last item ('Levels') with the end line
         if 'Levels' in self.Level1:
             self.Level1['Levels']['EndLine'] = line_count - 3
 
     def LevelTwoProcessing(self):
-        # Read only the relevant lines for Levels
         start_line = self.Level1['Levels'].get('StartLine')
         end_line = self.Level1['Levels'].get('EndLine')
         
@@ -122,81 +169,70 @@ class ZXGame_Parser():
             return
         
         relevant_lines = []
-        
         with open(self.file_path_unzipped, 'rb') as file:
-            for index, line in enumerate(file):
-                if start_line <= index <= end_line:
-                    relevant_lines.append(line.decode('utf-8'))
+            relevant_lines = [line.decode('utf-8') for index, line in enumerate(file) 
+                            if start_line <= index <= end_line]
         
-        start = False
         data_dict = {}
         current_item = None
+        in_items = False
 
         for index, line in enumerate(relevant_lines):
-            if not start:
-                if '<Items>' in line:
-                    start = True
-            else:
-                if '<Item>' in line:
+            if not in_items and '<Items>' in line:
+                in_items = True
+                continue
+            
+            if in_items:
+                if '<Item>' in line and current_item is None:
                     current_item = index
                     data_dict[current_item] = {'template': [line], 'StartLine': start_line + index}
-                elif '</Item>' in line:
-                    if current_item is not None:
-                        data_dict[current_item]['template'].append(line)
-                        data_dict[current_item]['EndLine'] = start_line + index
-                        current_item = None
+                elif '</Item>' in line and current_item is not None:
+                    data_dict[current_item]['template'].append(line)
+                    data_dict[current_item]['EndLine'] = start_line + index
+                    current_item = None
                 elif current_item is not None:
                     data_dict[current_item]['template'].append(line)
         
-        pattern = r'<Simple name="FileName" value="([^"]+)"'
         self.Level1['Levels']['Level'] = {}
-
-        # Insert new dict into level dict
-        for item in data_dict.keys():
-            for line in data_dict[item]['template']:
-                match = re.search(pattern, line)
+        for item in data_dict.values():
+            for line in item['template']:
+                match = FILE_PATTERN.search(line)
                 if match:
                     file_name = match.group(1)
                     self.Level1['Levels']['Level'][file_name] = {
-                        'template': data_dict[item]['template'],
-                        'StartLine': data_dict[item]['StartLine'],
-                        'EndLine': data_dict[item]['EndLine']}
+                        'template': item['template'],
+                        'StartLine': item['StartLine'],
+                        'EndLine': item['EndLine']
+                    }
+                    break
                             
     def LevelThreeProcessing(self):
         start_line = self.Level1['Clips'].get('StartLine')
         end_line = self.Level1['Clips'].get('EndLine')
         
         if start_line is None or end_line is None:
+            print('here')
             return
         
         relevant_lines = []
-        
         with open(self.file_path_unzipped, 'rb') as file:
-            for index, line in enumerate(file):
-                if start_line <= index <= end_line:
-                    relevant_lines.append(line.decode('utf-8'))
+            relevant_lines = [line.decode('utf-8') for index, line in enumerate(file) if start_line <= index <= end_line]
         
-        start = False
         self.Level1['Clips']['Data'] = {}
         data_dict = self.Level1['Clips']['Data']
         current_item = None
         item_count = 0
-        first = True
-        
-        # Regex pattern to extract the first Simple value ID
-        id_pattern = re.compile(r'<Simple value="(\d+)"')
+        in_items = False
         
         for index, line in enumerate(relevant_lines):
-            if not start:
-                if '<Item>' in line:
-                    start = True
-            else:
-                if '<Item>' in line and (item_count == 0 or first == True):
-                    if first == True:
-                        first = False
-                        item_count += 1
+            if not in_items and '<Items>' in line:
+                in_items = True
+                continue
+            
+            if in_items:
+                if '<Item>' in line and item_count == 0:
                     current_item = index
-                    item_count += 1 
+                    item_count += 1
                     data_dict[current_item] = {'template': [line], 'StartLine': start_line + index}
                 elif '<Item>' in line:
                     data_dict[current_item]['template'].append(line)
@@ -207,12 +243,10 @@ class ZXGame_Parser():
                         data_dict[current_item]['template'].append(line)
                         data_dict[current_item]['EndLine'] = start_line + index
                         if item_count == 0:
-                            # Extract the first Simple value ID within the Item
                             template_str = ''.join(data_dict[current_item]['template'])
-                            id_match = id_pattern.search(template_str)
+                            id_match = ID_PATTERN.search(template_str)
                             if id_match:
                                 simple_value_id = id_match.group(1)
-                                # Move the data to a new key based on simple_value_id
                                 data_dict[simple_value_id] = data_dict.pop(current_item)
                                 data_dict[simple_value_id]['ID'] = simple_value_id
                             current_item = None
@@ -220,38 +254,36 @@ class ZXGame_Parser():
                     data_dict[current_item]['template'].append(line)
 
     def LevelFourProcessing(self):
-        # Retrieve the start and end lines for the specific ID
-        start_line = self.Level1['Clips']['Data']['4104776980463107687'].get('StartLine')
-        end_line = self.Level1['Clips']['Data']['4104776980463107687'].get('EndLine')
+        clip_data = self.Level1['Clips']['Data'].get(self.Reconquest_id)
+        if not clip_data:
+            return
+            
+        start_line = clip_data.get('StartLine')
+        end_line = clip_data.get('EndLine')
         
         if start_line is None or end_line is None:
             return
         
         relevant_lines = []
-        
         with open(self.file_path_unzipped, 'rb') as file:
-            for index, line in enumerate(file):
-                if start_line <= index <= end_line:
-                    relevant_lines.append(line.decode('utf-8'))
+            relevant_lines = [line.decode('utf-8') for index, line in enumerate(file) 
+                            if start_line <= index <= end_line]
         
-        start = False
-        self.Level1['Clips']['Data']['4104776980463107687']['objects'] = {}
-        data_dict = self.Level1['Clips']['Data']['4104776980463107687']['objects']
+        clip_data['objects'] = {}
+        data_dict = clip_data['objects']
         current_item = None
         item_count = 0
-        
-        # Regex patterns to extract the Name and ID values
-        name_pattern = re.compile(r'<Simple name="Name" value="([^"]+)"')
-        id_pattern = re.compile(r'<Simple name="ID" value="([^"]+)"')
+        in_objects = False
         
         for index, line in enumerate(relevant_lines):
-            if not start:
-                if self.Reconquest_sub_dicts['objects'] in line:
-                    start = True
-            else:
-                if '<Item>' in line and (item_count == 0):
+            if not in_objects and self.Reconquest_sub_dicts['objects'] in line:
+                in_objects = True
+                continue
+            
+            if in_objects:
+                if '<Item>' in line and item_count == 0:
                     current_item = index
-                    item_count += 1 
+                    item_count += 1
                     data_dict[current_item] = {'template': [line], 'StartLine': start_line + index}
                 elif '<Item>' in line:
                     data_dict[current_item]['template'].append(line)
@@ -262,13 +294,11 @@ class ZXGame_Parser():
                         data_dict[current_item]['template'].append(line)
                         data_dict[current_item]['EndLine'] = start_line + index
                         if item_count == 0:
-                            # Extract the Name and ID values within the Item
                             template_str = ''.join(data_dict[current_item]['template'])
-                            name_match = name_pattern.search(template_str)
-                            id_match = id_pattern.search(template_str)
+                            name_match = NAME_PATTERN.search(template_str)
+                            id_match = ID_PATTERN.search(template_str)
                             if name_match:
                                 name_value = name_match.group(1)
-                                # Move the data to a new key based on name_value
                                 data_dict[name_value] = data_dict.pop(current_item)
                                 data_dict[name_value]['Name'] = name_value
                             if id_match:
@@ -277,44 +307,40 @@ class ZXGame_Parser():
                             current_item = None
                 elif current_item is not None:
                     data_dict[current_item]['template'].append(line)
-        
-        # with open('ZXGame_Level4.json', 'w', encoding='utf-8') as json_file:
-        #     json.dump(data_dict, json_file, ensure_ascii=False, indent=4)
 
     def LevelFiveProcessing(self):
-        # Retrieve the start and end lines for the specific ID
-        start_line = self.Level1['Clips']['Data']['4104776980463107687'].get('StartLine')
-        end_line = self.Level1['Clips']['Data']['4104776980463107687'].get('EndLine')
+        clip_data = self.Level1['Clips']['Data'].get(self.Reconquest_id)
+        if not clip_data:
+            return
+            
+        start_line = clip_data.get('StartLine')
+        end_line = clip_data.get('EndLine')
         
         if start_line is None or end_line is None:
             return
         
         relevant_lines = []
-        
         with open(self.file_path_unzipped, 'rb') as file:
-            for index, line in enumerate(file):
-                if start_line <= index <= end_line:
-                    relevant_lines.append(line.decode('utf-8'))
+            relevant_lines = [line.decode('utf-8') for index, line in enumerate(file) 
+                            if start_line <= index <= end_line]
         
-        start = False
-        self.Level1['Clips']['Data']['4104776980463107687']['frames'] = {}
-        data_dict = self.Level1['Clips']['Data']['4104776980463107687']['frames']
+        clip_data['frames'] = {}
+        data_dict = clip_data['frames']
         current_item = None
         item_count = 0
-        
-        # Regex patterns to extract the Name and ID values
-        id_pattern = re.compile(r'<Simple value="([^"]+)"')
+        in_frames = False
         
         for index, line in enumerate(relevant_lines):
-            if not start:
-                if '<Dictionary name="ObjectInstances" keyType="System.UInt64, mscorlib" valueType="DXVision.DXProjectObjectInstance, DXVision">' in line:
-                    start = True
+            if not in_frames and '<Dictionary name="ObjectInstances"' in line:
+                in_frames = True
+                continue
             elif self.Reconquest_sub_dicts['objects'] in line:
                 break
-            else:
-                if '<Item>' in line and (item_count == 0):
+            
+            if in_frames:
+                if '<Item>' in line and item_count == 0:
                     current_item = index
-                    item_count += 1 
+                    item_count += 1
                     data_dict[current_item] = {'template': [line], 'StartLine': start_line + index}
                 elif '<Item>' in line:
                     data_dict[current_item]['template'].append(line)
@@ -325,84 +351,64 @@ class ZXGame_Parser():
                         data_dict[current_item]['template'].append(line)
                         data_dict[current_item]['EndLine'] = start_line + index
                         if item_count == 0:
-                            # Extract the Name and ID values within the Item
                             template_str = ''.join(data_dict[current_item]['template'])
-                            id_match = id_pattern.search(template_str)
+                            id_match = ID_PATTERN.search(template_str)
                             if id_match:
                                 id_value = id_match.group(1)
                                 data_dict[current_item]['ID'] = id_value
                             current_item = None
-                            
                 elif current_item is not None:
                     data_dict[current_item]['template'].append(line)
 
-        new_data_dict = {}
-        for key, value in data_dict.items():
-            new_data_dict[data_dict[key]['ID']] = value
-        
-        self.Level1['Clips']['Data']['4104776980463107687']['frames'] = new_data_dict
-        
-        # Output the result to JSON for inspection
+        new_data_dict = {value['ID']: value for value in data_dict.values()}
+        clip_data['frames'] = new_data_dict
 
     def LevelSixProcessing(self):
-        data_dict = self.Level1['Clips']['Data']['4104776980463107687']['frames']
+        clip_data = self.Level1['Clips']['Data'].get(self.Reconquest_id)
+        if not clip_data:
+            return
+            
+        # Process frames
+        for item in clip_data['frames'].values():
+            for line in item['template']:
+                for name, value in SIMPLE_PATTERN.findall(line):
+                    item[name] = value
         
-        # Regex pattern to extract Simple name and value
-        simple_pattern = re.compile(r'<Simple name="([^"]+)" value="([^"]+)"')
-
-        for item in data_dict.keys():
-            for line in data_dict[item]['template']:
-                matches = simple_pattern.findall(line)
-                if matches:
-                    for name, value in matches:
-                        data_dict[item][name] = value
-        
-        data_dict = self.Level1['Clips']['Data']['4104776980463107687']['objects']
-        
-        # Regex pattern to extract Simple name and value
-        simple_pattern = re.compile(r'<Simple name="([^"]+)" value="([^"]+)"')
-
-        for item in data_dict.keys():
-            for line in data_dict[item]['template']:
-                matches = simple_pattern.findall(line)
-                if matches:
-                    for name, value in matches:
-                        data_dict[item][name] = value
+        # Process objects
+        for item in clip_data['objects'].values():
+            if isinstance(item, dict):  # Skip if it's not a dictionary (like template strings)
+                for line in item['template']:
+                    for name, value in SIMPLE_PATTERN.findall(line):
+                        item[name] = value
 
     def image_mapping(self):
-        lines = []
         with open(self.file_path_unzipped, 'rb') as file:
-            for line in file:
-                lines.append(line.decode('utf-8'))
+            lines = [line.decode('utf-8') for line in file]
 
         image_dict = {}
-        for index, line in enumerate(lines):
+        current_image = None
+        
+        for line in lines:
             if '<Complex name="Image" type="DXVision.DXImageFile, DXVision">' in line:
-                for subline in lines[index+1:]:
-                    
-                    if '<Complex name="Image" type="DXVision.DXImageFile, DXVision">' in subline:
-                        break
+                current_image = None
+            elif current_image is None and '<Simple name="FileName"' in line:
+                match = IMAGE_FILE_PATTERN.search(line)
+                if match:
+                    current_image = match.group(1)
+                    image_dict[current_image] = {}
+            elif current_image is not None:
+                submatch = IMAGE_ATTR_PATTERN.search(line)
+                if submatch:
+                    image_dict[current_image][submatch.group(1)] = submatch.group(2)
 
-                    if '<Simple name="FileName"' in subline:
-                        match = re.search(r'<Simple\s+name="FileName"[^>]*\svalue="([^"]+)"', subline)
-                        image_dict[str(match.group(1))] = {}
+        reversed_image_dict = {v['ID']: k for k, v in image_dict.items() if 'ID' in v}
 
-                    else:
-                        submatch = re.search(r'<Simple\s+name="([^"]+)"\s+value="([^"]+)"', subline)
-                        if submatch:
-                            image_dict[str(match.group(1))][str(submatch.group(1))] = str(submatch.group(2))
-
-        reversed_image_dict = {}
-        for item in image_dict:
-            if 'ID' in image_dict[item]:
-                reversed_image_dict[image_dict[item]['ID']] = item
-
-        self.Level1['my_image_dict']    = image_dict
+        self.Level1['my_image_dict'] = image_dict
         self.Level1['my_reversed_dict'] = reversed_image_dict
 
         return image_dict
     
-    
     def print_json(self):
-        with open('ZXGame.json', 'w', encoding='utf-8') as json_file:
-            json.dump(self.Level1, json_file, ensure_ascii=False, indent=2)
+        pass
+        # with open('ZXGame.json', 'w', encoding='utf-8') as json_file:
+        #     json.dump(self.Level1, json_file, ensure_ascii=False, indent=2)

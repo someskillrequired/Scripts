@@ -1,0 +1,50 @@
+                            <Item>
+                              <Simple value="9004333263805489431" />
+                              <Complex>
+                                <Properties>
+                                  <Complex name="State">
+                                    <Properties>
+                                      <Simple name="Flags" value="Visible, ImageAttributesModified, ModifiedGeometry" />
+                                      <Simple name="Area" value="365.0643;-57.90759;278.9228;117.7674" />
+                                      <Simple name="Angle" value="0" />
+                                      <Simple name="Shear" value="0;0" />
+                                      <Simple name="Scaling" value="1;1" />
+                                      <Simple name="X" value="365.0643" />
+                                      <Simple name="Y" value="-57.90759" />
+                                      <Simple name="Width" value="278.9228" />
+                                      <Simple name="Height" value="117.7674" />
+                                      <Simple name="Location" value="365.0643;-57.90759" />
+                                      <Simple name="Size" value="278.9228;117.7674" />
+                                      <Simple name="Center" value="504.5257;0.9761086" />
+                                      <Simple name="CenterX" value="504.5257" />
+                                      <Simple name="CenterY" value="0.9761086" />
+                                      <Simple name="ScalingXY" value="1" />
+                                      <Simple name="ScalingX" value="1" />
+                                      <Simple name="ScalingY" value="1" />
+                                      <Simple name="ShearX" value="0" />
+                                      <Simple name="ShearY" value="0" />
+                                      <Simple name="AreaStyle" value="AreaInParentCoordinates" />
+                                      <Simple name="Anchors" value="Top, Left" />
+                                      <Simple name="Visible" value="True" />
+                                      <Simple name="Opacity" value="1" />
+                                      <Simple name="Brightness" value="1" />
+                                      <Simple name="Contrast" value="1" />
+                                      <Simple name="Saturation" value="1" />
+                                      <Simple name="ColorHue" value="/////w==" />
+                                      <Simple name="HueRotation" value="0" />
+                                      <Simple name="Blur" value="0" />
+                                      <Simple name="BlurOffset" value="0;0" />
+                                      <Simple name="ImageStyle" value="Stretch" />
+                                      <Simple name="TileSize" value="0;0" />
+                                      <Simple name="TileOffset" value="0;0" />
+                                      <Simple name="TileOffsetX" value="0" />
+                                      <Simple name="TileOffsetY" value="0" />
+                                      <Null name="ImageArea" />
+                                      <Null name="ImageAreaFactor" />
+                                    </Properties>
+                                  </Complex>
+                                  <Simple name="AnimationMode" value="Normal" />
+                                  <Null name="Visible" />
+                                </Properties>
+                              </Complex>
+                            </Item>
