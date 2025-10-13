@@ -1,9 +1,7 @@
 import xml.etree.ElementTree as ET
-import json
 import re
 import os
 import subprocess
-from collections import defaultdict
 
 default_game_directory = r'D:\Steam\steamapps\common\They Are Billions'
 default_sevenzip_executable = r'C:/Program Files/7-Zip/7z.exe'

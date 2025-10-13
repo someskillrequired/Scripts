@@ -2,10 +2,10 @@ import sys
 import os
 from PyQt5.QtWidgets import QApplication, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QFileDialog, QLabel, QGridLayout, QTextEdit, QMenuBar, QAction, QFrame, QMessageBox, QComboBox
 from PyQt5.QtGui import QTextCursor
-import change_rules
-import pyqtcme
+import utilities.change_rules as change_rules
+import CampaignMapEditor
 import traceback
-from compare import find_diff
+from utilities.compare import find_diff
 
 current_dir = os.path.dirname(os.path.realpath(__file__)).replace('\\', '/')
 default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
@@ -433,9 +433,9 @@ class TAB_GUI(QWidget):
             selected_map_key = self.map_dropdown.currentText()
             r01 = os.path.join(self.game_directory, "ZXGame_Data", "Levels", map_dict[selected_map_key])
             
-            launched_map = pyqtcme.Map(self.game_directory, r01, self.sevenzip_executable)
+            launched_map = CampaignMapEditor.Map(self.game_directory, r01, self.sevenzip_executable)
             
-            windowclass = pyqtcme.MainWindow(launched_map, self.game_directory, self.sevenzip_executable, )
+            windowclass = CampaignMapEditor.MainWindow(launched_map, self.game_directory, self.sevenzip_executable, )
             windowclass.show()
         except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()

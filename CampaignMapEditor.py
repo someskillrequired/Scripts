@@ -4,23 +4,21 @@ import base64
 import re
 import json
 from datetime import datetime
-import math
 from pathlib import Path
-import io
 import sys
 import numpy as np
-#import entitynames
+import utilities.entitynames as entitynames
 from PIL import Image
 from PyQt5.QtWidgets import (
     QApplication, QGroupBox, QCheckBox, QMainWindow, QGraphicsView, QGraphicsScene, QFileDialog, QMessageBox,
-    QPushButton, QVBoxLayout, QWidget, QSlider, QComboBox, QLabel, QGraphicsRectItem, QGraphicsPixmapItem,
-    QTabWidget, QSpacerItem, QHBoxLayout, QLineEdit, QLabel, QGraphicsItemGroup, QSizePolicy, QTextEdit, QSplitter, QMenu,QMenuBar,QAction,QGraphicsEllipseItem
+    QPushButton, QVBoxLayout, QWidget, QSlider, QComboBox, QLabel, QGraphicsPixmapItem,
+    QTabWidget, QSpacerItem, QHBoxLayout, QLineEdit, QLabel, QSizePolicy, QTextEdit, QSplitter, QMenu,QMenuBar,QAction,QGraphicsEllipseItem
 )
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QBrush, QPen, QKeySequence
-from PyQt5.QtCore import QRectF, Qt, QSize, QPoint
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QPen, QKeySequence
+from PyQt5.QtCore import QRectF, Qt
 from PyQt5.QtOpenGL import QGLWidget
-from sprite_definitions import dict_zombies, dict_entities
+from utilities.sprite_definitions import dict_zombies, dict_entities
 from PyQt5.QtGui import QFont
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QShortcut

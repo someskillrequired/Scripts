@@ -1,27 +1,25 @@
 import sys
 import re
 import json
-import os
 import subprocess
 import numpy as np
 from PIL import Image, ImageEnhance
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QDialogButtonBox, QGraphicsView, QGraphicsScene, QFileDialog, QMessageBox,
-    QPushButton, QVBoxLayout, QWidget, QSlider, QComboBox, QLabel, QGraphicsRectItem, QGraphicsPixmapItem,
-    QTabWidget, QHBoxLayout, QDialog, QInputDialog, QLineEdit, QLabel, QGraphicsItemGroup, QSizePolicy, QTextEdit, QSplitter, QMenu, QMenuBar, QAction
+    QApplication, QMainWindow, QDialogButtonBox, QGraphicsView, QGraphicsScene, QMessageBox,
+    QPushButton, QVBoxLayout, QWidget, QComboBox, QLabel, QGraphicsRectItem, QGraphicsPixmapItem, 
+    QHBoxLayout, QDialog, QLineEdit, QLabel, QTextEdit, QSplitter, QAction
 )
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QBrush, QPen, QKeySequence
-from PyQt5.QtCore import QRectF, Qt, QSize, QPoint, QPointF
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QKeySequence
+from PyQt5.QtCore import Qt
 
-from pyqt_ZXGAME_Processor import ZXGame_Parser
-from PyQt5.QtWidgets import QShortcut, QInputDialog, QListWidget
+from utilities.ZXGAME_Processor import ZXGame_Parser
+from PyQt5.QtWidgets import QShortcut, QListWidget
 from pathlib import Path
 
 sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
 base_location = 'D:/Steam/steamapps/common/They Are Billions'
 base_location_images =f"{base_location}/ZXGame_Data/Images"
 ws = 'C:/project_files/Scripts/ws/zxgame_data'
-
 
 map_file                    = f'{base_location_images}/WorldMap/Atlas1_HQ.dat'
 map_file_atlas              = f'{base_location_images}/WorldMap/Atlas1_HQ.dxatlas'
