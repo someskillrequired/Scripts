@@ -9,7 +9,7 @@ from pathlib import Path
 import io
 import sys
 import numpy as np
-import entitynames
+#import entitynames
 from PIL import Image
 from PyQt5.QtWidgets import (
     QApplication, QGroupBox, QCheckBox, QMainWindow, QGraphicsView, QGraphicsScene, QFileDialog, QMessageBox,
