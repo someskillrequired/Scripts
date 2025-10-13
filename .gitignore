@@ -34,5 +34,7 @@ dist/gui.exe
 temp/Modded
 temp/ZXRules.dat
 Untitled-1.xml
-
+ws*
+*.pyc
 .codegpt
+*.xlsx
