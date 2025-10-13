@@ -1,15 +1,11 @@
 import sys
 import os
-import shutil
-import concurrent.futures
-from pathlib import Path
 from PyQt5.QtWidgets import QApplication, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QFileDialog, QLabel, QGridLayout, QTextEdit, QMenuBar, QAction, QFrame, QMessageBox, QComboBox
-from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QTextCursor
-import subprocess
 import change_rules
 import pyqtcme
 import traceback
+from compare import find_diff
 
 current_dir = os.path.dirname(os.path.realpath(__file__)).replace('\\', '/')
 default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
@@ -60,6 +56,7 @@ class TAB_GUI(QWidget):
         self.game_directory = ''
         self.sevenzip_executable = ''
         self.entry_widgets = []
+        self.entry_diff = []
         self.initUI()
 
     def initUI(self):
@@ -101,15 +98,54 @@ class TAB_GUI(QWidget):
         self.tab1 = QWidget()
         self.tab2 = QWidget()
         self.tab3 = QWidget()
+        self.tab4 = QWidget()
         
         self.tabs.addTab(self.tab1, "Setup")
         self.tabs.addTab(self.tab2, "Campaign Editor")
         self.tabs.addTab(self.tab3, "Campaign World Map Editor")
+        self.tabs.addTab(self.tab4, "Version Diff")
         
         self.setupTab1()
         self.setupTab2()
         self.setupTab3()
+        self.setupTab4()
         self.setLayout(self.layout)
+
+    def diff_files(self):
+        output_file = "diff_output.txt"
+        file1 = self.entry_diff[0].text()
+        file2 = self.entry_diff[1].text()
+        sheets = ["Campaigns", "Commands", "Entities", "Global", "MapConditions", "MapThemes", "Mayors"]
+        find_diff(file1, file2, sheets, output_file)
+    
+    def setupTab4(self):
+        layout = QVBoxLayout()
+        self.tab4.setLayout(layout)
+
+        file_selector_titles = ['Base Rules', 'New Rules']
+        for title in file_selector_titles:
+            title_label = QLabel(title, self.tab4)
+            layout.addWidget(title_label)
+
+            row_frame = QFrame(self.tab4)
+            row_layout = QHBoxLayout(row_frame)
+
+            entry = QLineEdit(self.tab4)
+            self.entry_diff.append(entry)
+            row_layout.addWidget(entry)
+
+            button = QPushButton("Browse", self.tab4)
+            button.clicked.connect(self.create_select_path_handler(entry))
+
+            row_layout.addWidget(button)
+            layout.addWidget(row_frame)
+
+        action_buttons_frame = QFrame(self.tab4)
+        action_buttons_layout = QHBoxLayout(action_buttons_frame)
+        layout.addWidget(action_buttons_frame)
+        button_load_modified = QPushButton("Write Difference", self.tab4)
+        button_load_modified.clicked.connect(lambda: self.diff_files())
+        action_buttons_layout.addWidget(button_load_modified)
 
     def setupTab1(self):
         layout = QVBoxLayout()
@@ -142,11 +178,15 @@ class TAB_GUI(QWidget):
         layout.addWidget(action_buttons_frame)
 
         button_load_default = QPushButton("Load Default Data", self.tab1)
-        button_load_default.clicked.connect(lambda: self.quick_load(False))
+        button_load_default.clicked.connect(lambda: self.quick_load())
         action_buttons_layout.addWidget(button_load_default)
 
         button_load_modified = QPushButton("Load Modified Data", self.tab1)
-        button_load_modified.clicked.connect(lambda: self.quick_load(True))
+        button_load_modified.clicked.connect(lambda: self.quick_load())
+        action_buttons_layout.addWidget(button_load_modified)
+
+        button_load_modified = QPushButton("Create Workspace", self.tab1)
+        button_load_modified.clicked.connect(lambda: self.quick_load())
         action_buttons_layout.addWidget(button_load_modified)
 
     def create_select_directory_handler(self, entry):
@@ -222,56 +262,68 @@ class TAB_GUI(QWidget):
         self.save_entries()
         event.accept()
 
-    def quick_load(self, mod=False):
+    def quick_load(self):
         try:
             self.save_entries()
-            self.load_data(mod)
+            self.load_data()
             self.save_data()
             self.save_back_to_file()
         except Exception as e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            print(exc_type)
-            print(exc_value)
-            print(exc_traceback)
-            print(traceback.print_tb(exc_traceback))
+            print(f"Error \n{e}")
+            return
 
-    def load_data(self, mod=False):
+    def load_data(self):
         self.game_directory = self.entry_widgets[0].text()
         self.current_directory = self.entry_widgets[1].text()
         self.xls_file_path = self.entry_widgets[2].text()
         self.sevenzip_executable = self.entry_widgets[3].text()
 
          # ZXRULES DATA
-        self.File_Data_ZXRules = change_rules.Data(rulesfilename, rulespassword,self.game_directory,self.current_directory,self.sevenzip_executable)
-        self.File_Data_ZXRules.unzip_file_with_7zip()
-        self.File_Data_ZXRules.read_file()
+        try:
+            self.File_Data_ZXRules = change_rules.Data(rulesfilename, rulespassword,self.game_directory,self.current_directory,self.sevenzip_executable)
+        except Exception as e:
+            print(f"Error During Setting up rules\n{e}")
+            return
+
+        try:
+            self.File_Data_ZXRules.unzip_file_with_7zip()
+        except Exception as e:
+            print(f"Unable to unzip ZXRules.dat\n{e}")
+            return
         
-        self.Entity_Data = change_rules.modify_entities(self.File_Data_ZXRules,self.xls_file_path,mod)
+        try:
+            self.File_Data_ZXRules.read_file()
+        except Exception as e:
+            print(f"Unable to unzip ZXRules.dat\n{e}")
+            return
+
+        #ZXRULES
+        self.Entity_Data = change_rules.modify_entities(self.File_Data_ZXRules,self.xls_file_path)
         if self.Entity_Data.valid_sheet:
             self.Entity_Data.read_sheet_to_xml()
             self.Entity_Data.format_xml()
         
-        self.globals_Data = change_rules.modify_globals(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.globals_Data = change_rules.modify_globals(self.File_Data_ZXRules,self.xls_file_path)
         if self.globals_Data.valid_sheet:
             self.globals_Data.read_sheet_to_xml()
             self.globals_Data.format_xml()
         
-        self.Command_Data = change_rules.modify_commands(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.Command_Data = change_rules.modify_commands(self.File_Data_ZXRules,self.xls_file_path)
         if self.Command_Data.valid_sheet:
             self.Command_Data.read_sheet_to_xml()
             self.Command_Data.format_xml()
         
-        self.MapTheme_Data = change_rules.modify_mapthemes(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.MapTheme_Data = change_rules.modify_mapthemes(self.File_Data_ZXRules,self.xls_file_path)
         if self.MapTheme_Data.valid_sheet:
             self.MapTheme_Data.read_sheet_to_xml()
             self.MapTheme_Data.format_xml()
         
-        self.map_conditions_Data = change_rules.modify_mapconditions(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.map_conditions_Data = change_rules.modify_mapconditions(self.File_Data_ZXRules,self.xls_file_path)
         if self.map_conditions_Data.valid_sheet:
             self.map_conditions_Data.read_sheet_to_xml()
             self.map_conditions_Data.format_xml()
 
-        self.mayor_Data = change_rules.modify_mayor(self.File_Data_ZXRules,self.xls_file_path,mod)
+        self.mayor_Data = change_rules.modify_mayor(self.File_Data_ZXRules,self.xls_file_path)
         if self.mayor_Data.valid_sheet:
             self.mayor_Data.read_sheet_to_xml()
             self.mayor_Data.format_xml()
@@ -281,31 +333,27 @@ class TAB_GUI(QWidget):
         self.File_Data_ZXCampaign.unzip_file_with_7zip()
         self.File_Data_ZXCampaign.read_file()
         
- 
-        self.Wave_Data = change_rules.modify_waves(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.Wave_Data = change_rules.modify_waves(self.File_Data_ZXCampaign,self.xls_file_path)
         if self.Wave_Data.valid_sheet:
             self.Wave_Data.read_sheet_to_xml()
             self.Wave_Data.format_xml()    
 
-        
-        self.mission_Data = change_rules.modify_missions(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.mission_Data = change_rules.modify_missions(self.File_Data_ZXCampaign,self.xls_file_path)
         if self.mission_Data.valid_sheet:
             self.mission_Data.read_sheet_to_xml()
             self.mission_Data.format_xml()
         
-       
-        self.hero_Data = change_rules.modify_heros(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.hero_Data = change_rules.modify_heros(self.File_Data_ZXCampaign,self.xls_file_path)
         if self.hero_Data.valid_sheet:
             self.hero_Data.read_sheet_to_xml()
             self.hero_Data.format_xml()  
 
-       
-        self.research_Data = change_rules.modify_research(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.research_Data = change_rules.modify_research(self.File_Data_ZXCampaign,self.xls_file_path)
         if self.research_Data.valid_sheet:
             self.research_Data.read_sheet_to_xml()
             self.research_Data.format_xml()
 
-        self.researchtree_Data = change_rules.modify_researchtree(self.File_Data_ZXCampaign,self.xls_file_path,mod)
+        self.researchtree_Data = change_rules.modify_researchtree(self.File_Data_ZXCampaign,self.xls_file_path)
         if self.researchtree_Data.valid_sheet:
             self.researchtree_Data.read_sheet_to_xml()
             self.researchtree_Data.format_xml()    
@@ -382,8 +430,6 @@ class TAB_GUI(QWidget):
             self.current_directory = self.entry_widgets[1].text()
             self.xls_file_path = self.entry_widgets[2].text()
             self.sevenzip_executable = self.entry_widgets[3].text()
-            
-                
             selected_map_key = self.map_dropdown.currentText()
             r01 = os.path.join(self.game_directory, "ZXGame_Data", "Levels", map_dict[selected_map_key])
             
@@ -414,7 +460,6 @@ class TAB_GUI(QWidget):
             print(exc_value)
             print(exc_traceback)
             print(traceback.print_tb(exc_traceback))
-
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
