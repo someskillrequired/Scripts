@@ -5,8 +5,8 @@ import os
 import subprocess
 from collections import defaultdict
 
-default_game_directory = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions'
-default_sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
+default_game_directory = r'D:\Steam\steamapps\common\They Are Billions'
+default_sevenzip_executable = r'C:/Program Files/7-Zip/7z.exe'
 
 # Precompile regex patterns for better performance
 SIMPLE_PATTERN = re.compile(r'<Simple name="([^"]+)" value="([^"]+)"')
