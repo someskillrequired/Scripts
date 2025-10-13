@@ -1,4 +1,8 @@
 import sys
+import re
+import json
+import os
+import subprocess
 import numpy as np
 from PIL import Image, ImageEnhance
 from PyQt5.QtWidgets import (
@@ -8,18 +12,25 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QBrush, QPen, QKeySequence
 from PyQt5.QtCore import QRectF, Qt, QSize, QPoint, QPointF
-import copy
+
 from pyqt_ZXGAME_Processor import ZXGame_Parser
 from PyQt5.QtWidgets import QShortcut, QInputDialog, QListWidget
-import re
-import json
+from pathlib import Path
 
-base_location = 'C:/Program Files (x86)/Steam/steamapps/common/They Are Billions/ZXGame_Data/Images'
+sevenzip_executable = 'C:/Program Files/7-Zip/7z.exe'
+base_location = 'D:/Steam/steamapps/common/They Are Billions'
+base_location_images =f"{base_location}/ZXGame_Data/Images"
+ws = 'C:/project_files/Scripts/ws/zxgame_data'
 
-map_file             = f'{base_location}/WorldMap/Atlas1_HQ.dat'
-map_file_atlas       = f'{base_location}/WorldMap/Atlas1_HQ/Atlas1_HQ.dxatlas'
-interface_file       = f'{base_location}/Interface/Atlas1_HQ.dat'
-interface_file_atlas = f'{base_location}/Interface/Atlas1_HQ/Atlas1_HQ.dxatlas' 
+
+map_file                    = f'{base_location_images}/WorldMap/Atlas1_HQ.dat'
+map_file_atlas              = f'{base_location_images}/WorldMap/Atlas1_HQ.dxatlas'
+interface_file              = f'{base_location_images}/Interface/Atlas1_HQ.dat'
+interface_file_atlas        = f'{base_location_images}/Interface/Atlas1_HQ.dxatlas'
+map_file_atlas_folder       = f'{ws}/WorldMap'
+interface_file_atlas_folder = f'{ws}/Interface'
+map_atlas_unzipped          = f'{map_file_atlas_folder}/Atlas1_HQ.dxatlas'
+interface_atlas_unzipped    = f'{interface_file_atlas_folder}/Atlas1_HQ.dxatlas'
 
 class ImageHandler:
     def __init__(self, file, x1, y1, x2, y2, entire_image=None, rotate=0):
@@ -38,7 +49,7 @@ class ImageHandler:
 
         # Then get the cut image
         self.cut_image = self.get_cut_image(self.entire_image, x1, y1, x2, y2)
-        
+
         # Store the original cut image before any scaling
         self.original_cut = self.cut_image
         
@@ -66,13 +77,13 @@ class ImageHandler:
             raise ValueError("Failed to load image data. Unsupported format or corrupted file.")
         return QPixmap.fromImage(qimage)
 
-    def get_cut_image(self, entire_image, x1, y1, x2, y2):
+    def get_cut_image(self, entire_image, x1, y1, width, height):
         """Crop a portion from the entire image"""
         # Ensure coordinates are within bounds
         x1 = max(0, int(x1))
         y1 = max(0, int(y1))
-        x2 = min(entire_image.width(), int(x2))
-        y2 = min(entire_image.height(), int(y2))
+        x2 = min(entire_image.width(), int(width))
+        y2 = min(entire_image.height(), int(height))
         x2 = x1 + x2
         y2 = y1 + y2
         # Ensure valid dimensions
@@ -101,7 +112,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.zxgame_file = zxgame_file
         self.image_dict = image_dict
-        self.selected_map = None
+        self.selected_item = None
         self.selection_rect = None 
         self.setWindowTitle("Global Map Viewer")
         self.setGeometry(100, 100, 1920, 1080)
@@ -134,7 +145,7 @@ class MainWindow(QMainWindow):
         
         self.create_arrow_shortcuts()
         self.create_delete_shortcut()
-        self.create_menu_bar()
+        #self.create_menu_bar()
         self.create_combined_control_panel()
     
     def create_combined_control_panel(self):
@@ -200,7 +211,7 @@ class MainWindow(QMainWindow):
         """Handle item selection from the list"""
         selected = self.item_list.selectedItems()
         if selected:
-            self.selected_map = selected[0].text()
+            self.selected_item = selected[0].text()
             self.update_property_editor()
             self.highlight_selected_item()
 
@@ -212,8 +223,8 @@ class MainWindow(QMainWindow):
             self.selection_rect = None
         
         # If we have a valid selection, create a new highlight rectangle
-        if self.selected_map and self.selected_map in self.image_dict:
-            details = self.image_dict[self.selected_map]['Map_Details']
+        if self.selected_item and self.selected_item in self.image_dict:
+            details = self.image_dict[self.selected_item]['Map_Details']
             
             # Create red border rectangle around selected item
             self.selection_rect = QGraphicsRectItem(
@@ -222,7 +233,6 @@ class MainWindow(QMainWindow):
                 float(details['Width']),
                 float(details['Height'])
             )
-            
             # Customize the appearance
             pen = QPen(Qt.red)
             pen.setWidth(3)
@@ -411,15 +421,17 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Save", "Changes saved successfully!", QMessageBox.Ok)
 
     def add_global_map_layer(self):
+        
         self.global_map_item = QGraphicsPixmapItem(self.image_dict['@Map']['Image'].final_image)
+        self.global_map_item.setPos(0,0)
         self.scene.addItem(self.global_map_item)
 
     def add_ic_map_layer(self):
         # Store selection info before clearing
         selected_info = None
         
-        if self.selected_map and self.selected_map in self.image_dict:
-            details = self.image_dict[self.selected_map]['Map_Details']
+        if self.selected_item and self.selected_item in self.image_dict:
+            details = self.image_dict[self.selected_item]['Map_Details']
             selected_info = {
                 'x': float(details['X']),
                 'y': float(details['Y']),
@@ -439,6 +451,7 @@ class MainWindow(QMainWindow):
             x_pos = float(self.image_dict[item]['Map_Details']['X'])
             y_pos = float(self.image_dict[item]['Map_Details']['Y'])
             pixmap_item.setPos(x_pos, y_pos)
+            
             self.scene.addItem(pixmap_item)
         
         # Recreate selection rectangle if needed
@@ -452,75 +465,68 @@ class MainWindow(QMainWindow):
             self.selection_rect.setPen(QPen(Qt.red, 3, Qt.SolidLine))
             self.scene.addItem(self.selection_rect) 
 
-
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             # Map the view coordinates to scene coordinates
+            
             scene_pos = self.view.mapToScene(event.pos())
-            self.handle_mouse_click(scene_pos.x(), scene_pos.y()) 
+            adjustedx = scene_pos.x()-18
+            adjustedy = scene_pos.y()-18
+
+            self.handle_mouse_click(adjustedx, adjustedy) 
 
     def handle_mouse_click(self, x, y):
-        """Improved item selection with accurate hit testing"""
+        """Improved item selection with early exits and minimal nesting."""
+        # --- Remove old highlight ---
         if self.selection_rect and self.selection_rect in self.scene.items():
             self.scene.removeItem(self.selection_rect)
             self.selection_rect = None
-        
-        self.selected_map = None
-        
-        # Find all items at the click position
-        items = self.scene.items(QPointF(x, y), Qt.IntersectsItemShape, Qt.DescendingOrder)
-        
-        # Filter for pixmap items (excluding the base map)
-        for item in items:
-            if isinstance(item, QGraphicsPixmapItem) and item != self.global_map_item:
-                # Find which map item this belongs to
-                for key, data in self.image_dict.items():
-                    if key == "@Map":
-                        continue
-                    item_x = float(data['Map_Details']['X'])
-                    item_y = float(data['Map_Details']['Y'])
-                    item_width = float(data['Map_Details']['Width'])
-                    item_height = float(data['Map_Details']['Height'])
-                    
-                    # Accurate hit test using item bounds
-                    if (item_x <= x <= item_x + item_width and 
-                        item_y <= y <= item_y + item_height):
-                        self.selected_map = key
-                        break
-                
-                if self.selected_map:
-                    # Update list selection
-                    for i in range(self.item_list.count()):
-                        if self.item_list.item(i).text() == self.selected_map:
-                            self.item_list.setCurrentRow(i)
-                            break
-                    
-                    # Draw selection rectangle
-                    details = self.image_dict[self.selected_map]['Map_Details']
-                    self.selection_rect = QGraphicsRectItem(
-                        float(details['X']),
-                        float(details['Y']),
-                        float(details['Width']),
-                        float(details['Height'])
-                    )
-                    self.selection_rect.setPen(QPen(Qt.red, 3, Qt.SolidLine))
-                    self.scene.addItem(self.selection_rect)
-                    self.update_property_editor()
-                    break
 
+        new_item = None
+        # --- Find the first valid clicked item ---
         
+        for key, data in self.image_dict.items():
+            if key == "@Map":
+                continue
+            item_x = float(data['Map_Details']['X'])
+            item_y = float(data['Map_Details']['Y'])
+            item_w = float(data['Map_Details']['Width'])
+            item_h = float(data['Map_Details']['Height'])
+
+            if (item_x <= x <= (item_x + item_w) and 
+                item_y <= y <= (item_y + item_h)):
+                new_item = key
+                break
+        
+        if self.selected_item == new_item:
+            self.highlight_selected_item()
+            return
+        
+        self.selected_item = new_item
+        
+        # --- Update UI state ---
+        if not self.selected_item:
+            self.item_list.clearSelection()
+            self.property_editor.clear()
+            return 
+
+        # --- Sync QListWidget selection ---
+        for i in range(self.item_list.count()):
+            if self.item_list.item(i).text() == self.selected_item:
+                self.item_list.setCurrentRow(i)
+                break
 
     def update_property_editor(self):
         """Update the property editor with current item's properties"""
-        if not self.selected_map or self.selected_map not in self.image_dict:
+        if not self.selected_item or self.selected_item not in self.image_dict:
             self.property_editor.clear()
             return
             
-        details = self.image_dict[self.selected_map]['Map_Details']
+        details = self.image_dict[self.selected_item]['Map_Details']
         
         # Convert properties to JSON for easy editing
         properties = {
-            'name': self.selected_map,
+            'name': self.selected_item,
             'position': {
                 'x': details.get('X', '0'),
                 'y': details.get('Y', '0')
@@ -529,7 +535,7 @@ class MainWindow(QMainWindow):
                 'width': details.get('Width', '0'),
                 'height': details.get('Height', '0')
             },
-            'image': self.image_dict[self.selected_map].get('image_name', ''),
+            'image': self.image_dict[self.selected_item].get('image_name', ''),
             'other_properties': {k: v for k, v in details.items() 
                                if k not in ['X', 'Y', 'Width', 'Height', 'template']}
         }
@@ -538,7 +544,7 @@ class MainWindow(QMainWindow):
         
     def save_properties(self):
         """Save edited properties back to the item"""
-        if not self.selected_map or self.selected_map not in self.image_dict:
+        if not self.selected_item or self.selected_item not in self.image_dict:
             return
             
         try:
@@ -546,7 +552,7 @@ class MainWindow(QMainWindow):
             new_properties = json.loads(self.property_editor.toPlainText())
             
             # Update basic properties
-            details = self.image_dict[self.selected_map]['Map_Details']
+            details = self.image_dict[self.selected_item]['Map_Details']
             details['X'] = str(new_properties['position']['x'])
             details['Y'] = str(new_properties['position']['y'])
             details['Width'] = str(new_properties['size']['width'])
@@ -621,7 +627,7 @@ class MainWindow(QMainWindow):
     
     def handle_arrow_key(self, key, modifier=None):
 
-        if not self.selected_map or self.selected_map not in self.image_dict:
+        if not self.selected_item or self.selected_item not in self.image_dict:
             return
 
         standard_offset = 1
@@ -652,13 +658,15 @@ class MainWindow(QMainWindow):
             y_offset = 0
 
         if self.selection_rect and self.selection_rect in self.scene.items():
-            details = self.image_dict[self.selected_map]['Map_Details']
+            details = self.image_dict[self.selected_item]['Map_Details']
             self.selection_rect.setRect(
                 float(details['X']),
                 float(details['Y']),
                 float(details['Width']),
                 float(details['Height'])
+                
             )
+            
 
         def reconstruct_template(template, data):
             new_template = []
@@ -683,34 +691,32 @@ class MainWindow(QMainWindow):
         def format_num(num):
             return format(num, '.3f')
         
-        print(self.image_dict[self.selected_map]['Map_Details']['template'])
-        self.image_dict[self.selected_map]['Map_Details']['X']        = str(format_num(float(self.image_dict[self.selected_map]['Map_Details']['X']) + x_offset))
-        self.image_dict[self.selected_map]['Map_Details']['Y']        = str(format_num(float(self.image_dict[self.selected_map]['Map_Details']['Y']) + y_offset))
-        self.image_dict[self.selected_map]['Map_Details']['Location'] = self.image_dict[self.selected_map]['Map_Details']['X'] + ';' + self.image_dict[self.selected_map]['Map_Details']['Y']
-        self.image_dict[self.selected_map]['Map_Details']['CenterX']  = str(format_num(float(self.image_dict[self.selected_map]['Map_Details']['CenterX']) + x_offset))
-        self.image_dict[self.selected_map]['Map_Details']['CenterY']  = str(format_num(float(self.image_dict[self.selected_map]['Map_Details']['CenterY']) + y_offset))
-        self.image_dict[self.selected_map]['Map_Details']['Center']   = self.image_dict[self.selected_map]['Map_Details']['CenterX'] + ';' + self.image_dict[self.selected_map]['Map_Details']['CenterY']
-        self.image_dict[self.selected_map]['Map_Details']['template'] = reconstruct_template(self.image_dict[self.selected_map]['Map_Details']['template'], self.image_dict[self.selected_map]['Map_Details'])
-        self.image_dict[self.selected_map]['Map_Details']['Modified'] = 'Moved'
-        print(self.image_dict[self.selected_map]['Map_Details']['template'])
+        self.image_dict[self.selected_item]['Map_Details']['X']        = str(format_num(float(self.image_dict[self.selected_item]['Map_Details']['X']) + x_offset))
+        self.image_dict[self.selected_item]['Map_Details']['Y']        = str(format_num(float(self.image_dict[self.selected_item]['Map_Details']['Y']) + y_offset))
+        self.image_dict[self.selected_item]['Map_Details']['Location'] = self.image_dict[self.selected_item]['Map_Details']['X'] + ';' + self.image_dict[self.selected_item]['Map_Details']['Y']
+        self.image_dict[self.selected_item]['Map_Details']['CenterX']  = str(format_num(float(self.image_dict[self.selected_item]['Map_Details']['CenterX']) + x_offset))
+        self.image_dict[self.selected_item]['Map_Details']['CenterY']  = str(format_num(float(self.image_dict[self.selected_item]['Map_Details']['CenterY']) + y_offset))
+        self.image_dict[self.selected_item]['Map_Details']['Center']   = self.image_dict[self.selected_item]['Map_Details']['CenterX'] + ';' + self.image_dict[self.selected_item]['Map_Details']['CenterY']
+        self.image_dict[self.selected_item]['Map_Details']['template'] = reconstruct_template(self.image_dict[self.selected_item]['Map_Details']['template'], self.image_dict[self.selected_item]['Map_Details'])
+        self.image_dict[self.selected_item]['Map_Details']['Modified'] = 'Moved'
         self.scene.clear()
         self.add_global_map_layer()
         self.add_ic_map_layer()
 
     def handle_delete_key(self):
         """Handle deleting the currently selected item"""
-        if self.selected_map and self.selected_map in self.image_dict:
+        if self.selected_item and self.selected_item in self.image_dict:
             # Mark as deleted in the data structure
-            self.image_dict[self.selected_map]['Map_Details']['Modified'] = 'Deleted'
+            self.image_dict[self.selected_item]['Map_Details']['Modified'] = 'Deleted'
             
             # Remove from the list widget
-            items = self.item_list.findItems(self.selected_map, Qt.MatchExactly)
+            items = self.item_list.findItems(self.selected_item, Qt.MatchExactly)
             if items:
                 row = self.item_list.row(items[0])
                 self.item_list.takeItem(row)
             
             # Clear selection
-            self.selected_map = None
+            self.selected_item = None
             self.property_editor.clear()
             
             # Refresh the display
@@ -719,13 +725,22 @@ class MainWindow(QMainWindow):
             self.add_ic_map_layer()
 
     def add_item(self):
-
         #Needs a new map
-        if self.selected_map in self.image_dict:
-            self.image_dict[self.selected_map]['Map_Details']['Modified'] = 'Added'
+        if self.selected_item in self.image_dict:
+            self.image_dict[self.selected_item]['Map_Details']['Modified'] = 'Added'
 
-        
-def atlas_parsing(atlas_dict,file_path) -> dict:
+def unzip(file,output_location):
+        command = [
+        sevenzip_executable,
+        'x',
+        '-y',
+        f'-o{output_location}',
+        file
+        ]
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def atlas_parsing(file_path) -> dict:
+    atlas_dict = {}
     with open(file_path) as file:
         lines = file.readlines()
 
@@ -734,10 +749,8 @@ def atlas_parsing(atlas_dict,file_path) -> dict:
             match = re.search(r'<Simple\s+name="n"[^>]*\svalue="([^"]+)"', line)
             atlas_dict[str(match.group(1))] = {}
             for subline in lines[index+1:]:
-                
                 if '<Simple name="n" value="' in subline:
                     break
-
                 else:
                     submatch = re.search(r'<Simple\s+name="([^"]+)"\s+value="([^"]+)"', subline)
                     if submatch:
@@ -745,61 +758,125 @@ def atlas_parsing(atlas_dict,file_path) -> dict:
     
     return atlas_dict
 
+def load_all_atlases():
+    """
+    Unzip and parse both map and interface atlases, returning a merged atlas dictionary.
+    """
+    unzip(map_file_atlas, map_file_atlas_folder)
+    unzip(interface_file_atlas, interface_file_atlas_folder)
+
+    atlas_map = atlas_parsing(map_atlas_unzipped)
+    atlas_int = atlas_parsing(interface_atlas_unzipped)
+
+    return atlas_map | atlas_int
+
+def load_source_images():
+    """
+    Load the full image data for both map and interface atlases.
+    """
+    return {
+        "WorldMap": ImageHandler(map_file, 0, 0, 1, 1).entire_image,
+        "Interface": ImageHandler(interface_file, 0, 0, 1, 1).entire_image,
+    }
+
+def extract_map_data(Level1):
+    """
+    Extract map object and frame data from the game Level1 dictionary.
+    """
+    data = Level1["Clips"]["Data"]["4104776980463107687"]
+    return data["objects"], data["frames"]
+
+def build_image_dict(objects, frames, Level1, atlas, images):
+    """
+    Build a dictionary mapping image identifiers to their processed ImageHandler instances.
+    """
+    my_image_dict = {}
+    no_image_id = []
+    no_image_file = []
+
+    for name, data in objects.items():
+        # --- Guard clauses for missing info ---
+        if "IDImage" not in data:
+            no_image_id.append(name)
+            continue
+
+        id_image = data["IDImage"]
+        if id_image not in Level1["my_reversed_dict"]:
+            no_image_file.append(id_image)
+            continue
+
+        # --- Extract path and file info ---
+        path = Level1["my_reversed_dict"][id_image]
+        image_name = Path(path).name
+        image_location = Path(path).parent.name
+
+        if image_name not in atlas:
+            print(f"[WARN] Image not found in atlas: {image_name}")
+            continue
+
+        if data["ID"] not in frames:
+            continue
+
+        # --- Determine the correct source image ---
+        src_image = images.get(image_location)
+        if src_image is None:
+            print(f"[WARN] Unknown image location: {image_location}")
+            continue
+
+        temp = atlas[image_name]
+
+        # --- Build image handler ---
+        handler = ImageHandler(
+            map_file if image_location == "WorldMap" else interface_file,
+            int(temp["x"]),
+            int(temp["y"]),
+            int(temp["w"]),
+            int(temp["h"]),
+            src_image,
+        )
+
+        # --- Scale according to map details ---
+        details = frames[data["ID"]]
+        handler.scale_image(
+            int(float(details["Width"])),
+            int(float(details["Height"])),
+        )
+
+        # --- Store result ---
+        my_image_dict[name] = {
+            "Map_Details": details,
+            "Image": handler,
+            "image_name": image_name,
+        }
+
+    return my_image_dict
+
+def load_images(zxgame_file):
+    """
+    Orchestrates the full loading of game images from ZXGame data.
+    """
+    Level1 = zxgame_file.Level1
+
+    # --- Step 1: Load atlases ---
+    atlas = load_all_atlases()
+
+    # --- Step 2: Load source images ---
+    images = load_source_images()
+
+    # --- Step 3: Extract object/frame data ---
+    objects, frames = extract_map_data(Level1)
+
+    # --- Step 4: Build image dictionary ---
+    my_image_dict = build_image_dict(objects, frames, Level1, atlas, images)
+
+    return my_image_dict
+
 def main():
     app = QApplication(sys.argv)
-    
-    zxgame_file = ZXGame_Parser(r'C:\Program Files (x86)\Steam\steamapps\common\They Are Billions',r'C:\Program Files (x86)\Steam\steamapps\common\They Are Billions\temp')
-    Level1 = zxgame_file.Level1
-    image_atlas = {}
-    image_atlas = atlas_parsing(image_atlas,map_file_atlas)
-    image_atlas = atlas_parsing(image_atlas,interface_file_atlas)
+    zxgame_file = ZXGame_Parser(base_location,ws)
+    map_images = load_images(zxgame_file)
 
-    map_entire_image = ImageHandler(map_file, 0, 0, 1, 1).entire_image
-    interface_entire_image =ImageHandler(interface_file, 0, 0, 1, 1).entire_image
-
-    map_data_location = Level1['Clips']['Data']['4104776980463107687']['objects']
-    map_detail_location = Level1['Clips']['Data']['4104776980463107687']['frames']
-
-    no_image_id   = []
-    no_image_file = []
-    my_image_dict = {}
-    
-    for image in map_data_location:
-        if 'IDImage' in map_data_location[image]:
-            if map_data_location[image]['IDImage'] in Level1['my_reversed_dict']:
-                if Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1] in image_atlas:
-                    if map_data_location[image]['ID'] in map_detail_location:
-                        my_image_dict[image] = {}
-                        my_image_dict[image]['Map_Details'] = map_detail_location[map_data_location[image]['ID']]
-                        image_location = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[0].rsplit('\\',1)[1]
-                        image_name = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1]
-                        temp = image_atlas[image_name]
-                        if image_location == 'WorldMap':
-                            full_image = ImageHandler(map_file,int(temp['x']),int(temp['y']),int(temp['w']),int(temp['h']),map_entire_image)
-
-                        elif image_location == 'Interface':
-                            full_image = ImageHandler(interface_file,int(temp['x']),int(temp['y']),int(temp['w']),int(temp['h']),interface_entire_image)
-                        else:
-                            print(f'image location {image_location} not found')
-                            break
-                            
-                        full_image.scale_image(int(float(my_image_dict[image]['Map_Details']['Width'])),int(float(my_image_dict[image]['Map_Details']['Height'])))
-                        my_image_dict[image]['Image'] = full_image
-                        my_image_dict[image]['image_name'] = Level1['my_reversed_dict'][map_data_location[image]['IDImage']].rsplit('\\',1)[1]
-
-                    else:
-                        pass
-                        #print('not on map')
-                else:
-                    print('not_found')
-                    
-            else:
-                no_image_file.append(image['IDImage'])
-        else:
-            no_image_id.append(image)
-
-
-    main_window = MainWindow(my_image_dict,zxgame_file)
+    main_window = MainWindow(map_images,zxgame_file)
     main_window.show()
     sys.exit(app.exec_())
 
