@@ -4,28 +4,28 @@ import base64
 import re
 import json
 from datetime import datetime
-from pathlib import Path
 import sys
 import numpy as np
 import utilities.entitynames as entitynames
-from PIL import Image
+from utilities.image_handler_cme import ImageHandler
 from PyQt5.QtWidgets import (
     QApplication, QGroupBox, QCheckBox, QMainWindow, QGraphicsView, QGraphicsScene, QFileDialog, QMessageBox,
     QPushButton, QVBoxLayout, QWidget, QSlider, QComboBox, QLabel, QGraphicsPixmapItem,
     QTabWidget, QSpacerItem, QHBoxLayout, QLineEdit, QLabel, QSizePolicy, QTextEdit, QSplitter, QMenu,QMenuBar,QAction,QGraphicsEllipseItem
 )
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QPen, QKeySequence
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QKeySequence
 from PyQt5.QtCore import QRectF, Qt
-from PyQt5.QtOpenGL import QGLWidget
+from PyQt5.QtWidgets import QOpenGLWidget
 from utilities.sprite_definitions import dict_zombies, dict_entities
 from PyQt5.QtGui import QFont
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QShortcut
-from PIL import Image, ImageEnhance
+from pathlib import Path
 import random
-from PyQt5.QtCore import QTimer
+import shutil
 from PyQt5.QtGui import QPixmap
+import math
 
 DEBUG = True
 
@@ -89,6 +89,97 @@ The Highlands                R22.dxlevel
 The Goddess of Destiny       REND.dxlevel
 
 """
+
+def closest_point(origin, points):
+    """
+    Given a point (tuple or 'x;y' string) and a list of points (in same format),
+    return the closest point and its distance.
+    """
+    origin = parse_point(origin)
+    parsed_points = [parse_point(p) for p in points]
+
+    closest = min(parsed_points, key=lambda p: math.dist(origin, p))
+    distance = math.dist(origin, closest)
+    return distance
+
+def parse_point(p):
+    """Convert 'x;y' string into a (float, float) tuple."""
+    if isinstance(p, str):
+        x, y = map(float, p.split(';'))
+        return (x, y)
+    return p  # Already a tuple or list
+
+def summarize_layer(matrix, layer_dict, command_center_pos):
+
+    unique, counts = np.unique(matrix, return_counts=True)
+    stats = {}
+
+    command_center_pos = np.array(command_center_pos)
+
+    y_idx, x_idx = np.indices(matrix.shape)
+
+    for k, c in zip(unique, counts):
+        key_name = layer_dict.get(k, f"Unknown({k})")
+        mask = (matrix == k)
+
+        # Always include count
+        entry = {"count": int(c)}
+
+        if k != 0 and np.any(mask):
+            # compute distances from CC
+            positions = np.column_stack((y_idx[mask], x_idx[mask]))
+            dists = np.linalg.norm(positions - command_center_pos, axis=1)
+            entry.update({
+                "min_dist": float(np.min(dists)),
+                "max_dist": float(np.max(dists)),
+                "avg_dist": float(np.mean(dists)),
+                "std_dist": float(np.std(dists))
+            })
+        else:
+            entry.update({
+                "min_dist": 0.0,
+                "max_dist": 0.0,
+                "avg_dist": 0.0,
+                "std_dist": 0.0
+            })
+
+        stats[key_name] = entry
+
+    return stats
+
+def get_stats(map_data):
+    locations_zombies = []
+    locations_vod = []
+    location_cc = None
+    for entity in map_data.entities:
+        template = map_data.entities[entity]['template'][0]
+        if 'Mutant' in template or "Giant" in template:
+            locations_zombies.append(map_data.entities[entity]['Position'])
+        if 'Command' in template:
+            location_cc = map_data.entities[entity]['Position']
+        if 'DoomBuilding' in template:
+            locations_vod.append(map_data.entities[entity]['Position'])
+    
+    cc_pos_tuple = parse_point(location_cc)
+    stats = []
+    for i, layer in enumerate(map_data.layers):
+        if i not in layer_map:
+            continue
+
+        layer_name, layer_dict = layer_map[i]
+        stats.append(summarize_layer(layer, layer_dict, cc_pos_tuple))
+
+    return stats
+
+def invert_layer_dict(layer):
+    inverted = {value: key for key, value in layer.items()}
+    return inverted
+
+def weighted_random_choice(weighted_dict):
+    keys = list(weighted_dict.keys())  # Extract keys (names)
+    weights = list(weighted_dict.values())  # Extract corresponding weights
+    
+    return random.choices(keys, weights=weights, k=1)[0]
 
 colors = {
     "None": (255, 255, 255),
@@ -209,15 +300,22 @@ LayerBelts = {
     2: "beltendpoint",
 }
 
-def invert_layer_dict(layer):
-    inverted = {value: key for key, value in layer.items()}
-    return inverted
+layer_map = {
+    0: ("LayerTerrain", LayerTerrain),
+    1: ("LayerObjects", LayerObjects),
+    3: ("LayerZombies", LayerZombies),
+}
 
-def weighted_random_choice(weighted_dict):
-    keys = list(weighted_dict.keys())  # Extract keys (names)
-    weights = list(weighted_dict.values())  # Extract corresponding weights
-    
-    return random.choices(keys, weights=weights, k=1)[0]
+brush_offsets = {
+                "Single": [(0, 0)],
+                "Crosshair": [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)],
+                "3x3": [(x, y) for x in range(-1, 2) for y in range(-1, 2)],
+                "5x5": [(x, y) for x in range(-2, 3) for y in range(-2, 3)],
+                "9x9": [(x, y) for x in range(-4, 5) for y in range(-4, 5)],
+                "19x19": [(x, y) for x in range(-9, 10) for y in range(-9, 10)],
+                "51x51": [(x, y) for x in range(-49, 50) for y in range(-9, 10)],
+                "CLEAR":[(x, y) for x in range(-256, 256) for y in range(-256, 256)],
+            }
 
 inverted_LayerTerrain = invert_layer_dict(LayerTerrain)
 inverted_LayerRoads = invert_layer_dict(LayerRoads)
@@ -282,90 +380,14 @@ class MultiSelectComboBox(QComboBox):
             if self.model.item(i).checkState() == Qt.Checked
         ]
 
-class ImageHandler:
-    def __init__(self, file, x1, y1, x2, y2, scale_x, scale_y=False, pixels_cell_size=5, cell_size=1, rotate=0):
-        self.file = file
-        self.x1 = x1
-        self.y1 = y1
-        self.x2 = x2
-        self.y2 = y2
-        self.pixels_cell_size = pixels_cell_size
-        self.cell_size = cell_size
-        self.scale_x = scale_x
-        self.scale_y = scale_y if scale_y else scale_x
-        self.rotate = rotate
-
-        self.entire_image = self.pull_image_data(file)
-        self.cut_image = self.get_cut_image(self.entire_image, x1, y1, x2, y2)
-        self.final_image = self.cut_image
-
-    def pull_image_data(self, file):
-        image = Image.open(file)
-        image = image.convert("RGBA")
-
-        # Apply brightness filter
-        enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.25)
-
-        # Rotate the image if required
-        if self.rotate !=0:
-            image = image.rotate(self.rotate, expand=True)
-
-        data = np.array(image)
-        height, width, channel = data.shape
-        qimage = QImage(data.data, width, height, width * channel, QImage.Format_RGBA8888)
-        if qimage.isNull():
-            raise ValueError("Failed to load image data. Unsupported format or corrupted file.")
-        return QPixmap.fromImage(qimage)
-    
-    def get_cut_image(self, entire_image, x1, y1, x2, y2):
-        return entire_image.copy(x1, y1, x2 - x1, y2 - y1)
-
-class SpriteAnimation(QGraphicsView):
-    def __init__(self):
-        super().__init__()
-
-        # Create a scene
-        self.scene = QGraphicsScene()
-        self.setScene(self.scene)
-
-        # Load sprite frames
-        self.frames = [
-            QPixmap("frame1.png"),
-            QPixmap("frame2.png"),
-            QPixmap("frame3.png"),
-            QPixmap("frame4.png")
-        ]
-        
-        # Create sprite item
-        self.sprite = QGraphicsPixmapItem(self.frames[0])
-        self.scene.addItem(self.sprite)
-
-        # Sprite position
-        self.sprite.setPos(100, 100)
-
-        # Timer to animate sprite
-        self.frame_index = 0
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.next_frame)
-        self.timer.start(100)  # Change frame every 100ms
-
-    def load_frames(self):
-        pass
-        
-    
-    def next_frame(self):
-        """Update the sprite to the next frame."""
-        self.frame_index = (self.frame_index + 1) % len(self.frames)
-        self.sprite.setPixmap(self.frames[self.frame_index])
-
 class MapView(QGraphicsView):
     def __init__(self, brushes_dropdown, layer_select_dropdown, layer_objects_dropdown, all_entities, tabs, zoom_slider, random_checkbox, parent=None, main_window = None):
         super().__init__(parent)
-        self.setViewport(QGLWidget())  # Enable OpenGL
+        self.setViewport(QOpenGLWidget())  # Enable OpenGL
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
         self.circles = [200]
+        self.setBackgroundBrush(QColor(240, 240, 240))
         self.layer_draw_dict ={}
         self.layer_draw_dict_priority = {'terrain': 1, 
                                          'objects': 2, 
@@ -468,7 +490,7 @@ class MapView(QGraphicsView):
             self.entity_boxes = {}
             self.draw_entities()
         
-        self.draw_playable_area()
+        #self.draw_playable_area()
         
         if self.tabs.currentIndex() == 3:
             self.draw_circle()
@@ -911,15 +933,6 @@ class MapView(QGraphicsView):
             selected_option = self.layer_objects_dropdown.currentText()
             
             potential_items = self.layer_objects_dropdown.get_checked_items()
-            print(potential_items)
-            
-            brush_offsets = {
-                "Single": [(0, 0)],
-                "Crosshair": [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)],
-                "3x3": [(x, y) for x in range(-1, 2) for y in range(-1, 2)],
-                "5x5": [(x, y) for x in range(-2, 3) for y in range(-2, 3)],
-                "CLEAR":[(x, y) for x in range(-256, 256) for y in range(-256, 256)],
-            }
             
             for offset in brush_offsets[brush_size]:
                 if self.random_checkbox.isChecked():
@@ -996,7 +1009,7 @@ class MapView(QGraphicsView):
             self.update_map(layer_updated)
         
     def find_and_print_entity(self, grid_x, grid_y):
-        print(grid_x,grid_y)
+
         
         def point_in_boxes_dict(px, py, boxes_dict):
             potential_items = []
@@ -1007,7 +1020,6 @@ class MapView(QGraphicsView):
                 max_y = box["y"] + box["y_len"]
                 if min_x <= px <= max_x and min_y <= py <= max_y:
                     potential_items.append(key)
-                    print(key,box)
             return potential_items
 
         potential_items = point_in_boxes_dict(grid_y,grid_x,self.entity_boxes)
@@ -1073,9 +1085,8 @@ class MapView(QGraphicsView):
             )
             self.entity_sprite_holder[sprite] = temp
 
-class MyPopup(QWidget):
+class InfoPopup(QWidget):
     def __init__(self):
-        print('here')
         QWidget.__init__(self)
         self.initUI()
 
@@ -1155,8 +1166,7 @@ class CheckboxWidget(QWidget):
         """Removes this widget from the parent layout."""
         self.mainwindow.map_view.circle_compute(self.retrieve_values())
         pass
-
-   
+  
 class MainWindow(QMainWindow):
     def __init__(self, current_map, directory, sevenzip_executable):
         super().__init__()
@@ -1169,6 +1179,8 @@ class MainWindow(QMainWindow):
         self.all_entities = None
         self.create_arrow_shortcuts()
         self.create_delete_shortcut()
+        self.create_pgup_shortcut()
+        self.file_index = 1
         
         if self.current_map.valid_map:
             self.data_size = self.current_map.data_size
@@ -1207,8 +1219,7 @@ class MainWindow(QMainWindow):
         self.setMenuBar(menu_bar)
 
     def options_menu(self):
-        print('here1')
-        self.w = MyPopup()
+        self.w = InfoPopup()
         self.w.show()
     
     def on_setting_selected(self, option):
@@ -1223,7 +1234,6 @@ class MainWindow(QMainWindow):
             QMessageBox.about(self, "About", "TAB Campaign Mod Tool\nVersion 1.4\nAuthor: SomeSkillRequired")
         elif option == "Options":
             self.options_menu()
-        print(f'Selected setting: {option}')
 
     def initUI(self):
         self.tab_width = 300
@@ -1251,10 +1261,13 @@ class MainWindow(QMainWindow):
 
         self.map_view = MapView(self.brushes_dropdown, self.layer_select_dropdown ,self.layer_objects_dropdown, self.all_entities, self.tabs, self.zoom_slider, self.random_checkbox, main_window=self)
         self.tabs.addTab(self.create_zombie_gen_tab(), "Zombies Generator")
-        
+        self.tabs.addTab(self.create_stats_tab(), "Stats")
+
+
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(tab_widget)
         splitter.addWidget(self.map_view)
+
         splitter.setStretchFactor(0, 1)  # Give the tabs widget less initial space
         splitter.setStretchFactor(1, 4)  # Give the map view more initial space
         layout.addWidget(splitter)
@@ -1348,7 +1361,7 @@ class MainWindow(QMainWindow):
 
         self.brushes_dropdown = QComboBox(self)
         self.brushes_dropdown.setFixedWidth(self.tab_width_button)  # Set fixed width for the dropdown
-        self.brushes_dropdown.addItems(["Single", "Crosshair", "3x3", "5x5", "CLEAR"])
+        self.brushes_dropdown.addItems(brush_offsets.keys())
         layout.addWidget(QLabel("Brushes"))
         layout.addWidget(self.brushes_dropdown)
 
@@ -1434,6 +1447,61 @@ class MainWindow(QMainWindow):
         
         return zombies_gen_tab
     
+    def create_stats_tab(self):
+        stats_tab = QWidget()
+        main_layout = QVBoxLayout()
+
+        # --- Reload Button ---
+        reload_button = QPushButton("Reload Stats")
+        main_layout.addWidget(reload_button)
+
+        # --- Stats Container ---
+        self.stats_tab = QVBoxLayout()
+        main_layout.addLayout(self.stats_tab)
+
+        def clear_layout(layout):
+            """Recursively remove all widgets and layouts."""
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                child_layout = item.layout()
+                if widget is not None:
+                    widget.deleteLater()
+                elif child_layout is not None:
+                    clear_layout(child_layout)
+                    child_layout.deleteLater()
+
+        def load_stats():
+            # Clear existing stats safely
+            clear_layout(self.stats_tab)
+
+            # Load and display stats
+            if self.current_map:
+                stats = get_stats(self.current_map)
+                for index, layer in enumerate(stats):
+                    for key, value in layer.items():
+                        row_layout = QHBoxLayout()
+
+                        key_label = QLabel(f"{index}: Stats: {key}")
+                        key_label.setStyleSheet("font-weight: bold;")
+                        row_layout.addWidget(key_label)
+
+                        row_layout.addSpacing(20)
+
+                        value_label = QLabel(f"Value: {value}")
+                        row_layout.addWidget(value_label)
+
+                        self.stats_tab.addLayout(row_layout)
+
+        # --- Connect Reload Button ---
+        reload_button.clicked.connect(load_stats)
+
+        # --- Initial Load ---
+        load_stats()
+
+        stats_tab.setLayout(main_layout)
+        return stats_tab
+
     def update_circles(self):
         self.map_view.circles = []
         if self.max_distance.text():
@@ -1529,6 +1597,10 @@ class MainWindow(QMainWindow):
     def create_delete_shortcut(self):
         delete_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self)
         delete_shortcut.activated.connect(self.handle_delete_key)
+
+    def create_pgup_shortcut(self):
+        delete_shortcut = QShortcut(QKeySequence(Qt.Key_PageUp), self)
+        delete_shortcut.activated.connect(self.load_next_map)
         
     def create_arrow_shortcuts(self):
         arrow_up = QShortcut(QKeySequence(Qt.Key_Up), self)
@@ -1718,6 +1790,13 @@ class MainWindow(QMainWindow):
             self.current_map = Map(self.directory, file_name, self.sevenzip_executable)
             self.load_map_data()
 
+    def load_next_map(self):
+        tempfile = rf"C:\Users\joshu\OneDrive\Desktop\New folder (6)\Split\Split{self.file_index}\Split{self.file_index}.zxsav"
+        temppass = rf"C:\Users\joshu\OneDrive\Desktop\New folder (6)\Split\Split{self.file_index}\Split{self.file_index}.pass"
+        self.current_map = CustomMap(self.directory,tempfile,self.sevenzip_executable, temppass)
+        self.load_map_data()
+        self.file_index += 1
+
     def save_map(self):
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Map", "", "All Files (*);;Map Files (*.dxlevel)", options=options)
@@ -1809,20 +1888,20 @@ class Map:
         self.sevenzip_executable = sevenzip_executable
         
         self.filename = os.path.basename(map_name)
-        print(self.filename)
+        
         self.loaded_folder_path = os.path.join(self.directory)
         self.loaded_original_file_path = map_name
         self.svnzip_unzipped_folder_path = os.path.join(self.directory, "ZXGame_Data\\Levels\\custom_maps_unzipped_no_changes")
         self.unzipped_file_path = os.path.join(self.directory, f"ZXGame_Data\\Levels\\custom_maps_unzipped_no_changes\\{self.filename}")
-        
-        self.unzipped_modded_folder_path = os.path.join(self.directory, "custom_maps_unzipped")
-        self.unzipped_modded_file_path = os.path.join(self.directory, "custom_maps_unzipped", map_name)
-        
+        self.unzipped_modded_folder_path = os.path.join(self.directory, "ZXGame_Data","Levels","custom_maps_unzipped")
+        self.unzipped_modded_file_path = os.path.join(self.directory, "ZXGame_Data","Levels","custom_maps_unzipped", map_name)
         self.rezipped_folder_path = os.path.join(self.directory, "ZXGame_Data", "Levels", "custom_maps_backups")
         self.rezipped_file_path = os.path.join(self.directory, "custom_maps", map_name)
 
         self.file_name = map_name
+        
         self.extract()
+
         self.parse()
         self.valid_map = self.get_indices()
         if self.valid_map:
@@ -1848,6 +1927,14 @@ class Map:
                 print(e)
                 print(f'{self.loaded_original_file_path} could not be unzipped to {self.svnzip_unzipped_folder_path}')
 
+    def parse(self):
+        self.file_data = []
+        try:
+            with open(self.unzipped_file_path, 'r') as file:
+                self.file_data = file.readlines()
+        except FileNotFoundError:
+            print(f"Failed to read {self.unzipped_file_path}")
+        
     def push_new_entity(self,template):
         #inside template into file_data
         for i, line in enumerate(template.split("\n")):
@@ -1882,14 +1969,6 @@ class Map:
         self.get_indices()
         self.pull_entity_data()
     
-    def parse(self):
-        self.file_data = []
-        try:
-            with open(self.unzipped_file_path, 'r') as file:
-                self.file_data = file.readlines()
-        except FileNotFoundError:
-            print(f"Failed to read {self.unzipped_file_path}")
-
     def get_indices(self):
         #print(self.file_data)
         substring_to_find = "LayerTerrain"
@@ -1930,7 +2009,7 @@ class Map:
                 self.file_data[index] = self.file_data[index].replace(f'<Simple name="Capacity" value="{old_capacity}" /',f'<Simple name="Capacity" value="{new_capacity}" /')
     
     def pull_layer_strings(self):
-        pattern = r'<Simple name="Cells" value="(?P<size>1024|512|256|128)\|(?P=size)\|(?P<data>.+?)" \/>'
+        pattern = r'<Simple name="Cells" value="(?P<size>\d+)\|(?P=size)\|(?P<data>.+?)" \/>'
         self.data_LayerTerrain = re.search(pattern, self.file_data[self.LayerTerrainLine]).group('data')
         self.data_LayerObjects = re.search(pattern, self.file_data[self.LayerObjectsLine]).group('data')
         self.data_LayerRoads = re.search(pattern, self.file_data[self.LayerRoadsLine]).group('data')
@@ -2031,8 +2110,13 @@ class Map:
                 continue
             if '<Complex name="Extension" type="ZX.GameSystems.ZXLevelExtension, TheyAreBillions">' in line:
                 break
+            if '<Dictionary name="LevelFastSerializedEntities"' in line:
+                break
             if start == True:
-
+                if '<Item>' in line or '</Item>' in line: 
+                    continue
+                if "<Item>" in self.file_data[index-1] and 'Simple value=' in line:
+                    continue
                 if '<Complex' in line and 'Properties' in self.file_data[index+1] and "</Properties>" not in self.file_data[index+1]:
                     if complex_count == 0:
                         self.entities[index] = {}
@@ -2043,7 +2127,7 @@ class Map:
                         
                 elif '/Complex' in line:
                     complex_count -= 1     
-            
+
                 self.entities[current_entity]['template'].append(line)
                 
                 if current_entity and '<Simple name=' in line:
@@ -2060,7 +2144,14 @@ class Map:
                 self.entities[entity]['template'].pop()
                 self.entities[entity]['template'].pop()
                 break
-                    
+        
+       
+        for entity in self.entities:
+            if 'IDTemplate type=System.UInt64, mscorlib' not in self.entities[entity]:
+                #TODO
+                import pdb
+                pdb.set_trace()
+
         if DEBUG:
             with open(os.path.join(os.getcwd(), "Entities.json"), 'w') as f:
                 json.dump(self.entities, f, indent=4)
@@ -2139,7 +2230,116 @@ class Map:
             print(f'{self.file_name} Successfully Rezipped')
         except subprocess.CalledProcessError as e:
             print(f"Error compressing file '{self.unzipped_modded_file_path}': {e}")
+
+class CustomMap(Map):
+    def __init__(self, directory, map_name, sevenzip_executable,password_file):
+        self.password_file = Path(password_file)
+        super().__init__(directory, map_name, sevenzip_executable)
+
+    def extract(self):
+        self.try_passwords()
+        self.unzipped_file_path = os.path.join(self.directory, f"ZXGame_Data\\Levels\\custom_maps_unzipped_no_changes\\{self.filename}\\Data")
+        #shutil.copy(self.loaded_original_file_path,self.svnzip_unzipped_folder_path)
+
+    def load_passwords(self):
+        """Load passwords from file, remove duplicates, and reverse the order."""
+        with open(self.password_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # Extract text between quotes after 'Password = '
+        passwords = []
+        for line in lines:
+            match = re.search(r"Password\s*=\s*'(.*?)'", line)
+            if match:
+                pw = match.group(1).strip()
+                if pw:  # Skip empty passwords
+                    passwords.append(pw)
+
+        # Reverse order and remove duplicates while preserving order
+        seen = set()
+        unique_passwords = []
+        for pw in reversed(passwords):
+            if pw not in seen:
+                seen.add(pw)
+                unique_passwords.append(pw)
+
+        return unique_passwords
+
+    def try_passwords(self):
+        """Try each password until one succeeds."""
+        passwords = self.load_passwords()
+
+        for pw in passwords:
+            command = [
+                self.sevenzip_executable,
+                'x',
+                '-y',
+                f'-p{pw}',
+                f'-o{os.path.join(self.svnzip_unzipped_folder_path,self.filename)}',
+                (self.loaded_original_file_path)
+            ]
+            try:
+                subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(f"✅ Successfully extracted with password: {pw}")
+                self.pw = pw
+                return pw
+            except subprocess.CalledProcessError:
+                pass
+                #print(f"Failed password: {pw}")
+        print("No password succeeded.")
+        return None
+
+    def zip_files_with_7zip(self, file_path, path_to_save_to):
+        print(f"file_path:{self.unzipped_modded_folder_path}")
+        print(f"path_to_save_to:{path_to_save_to}")
+        data = os.path.join(self.unzipped_modded_folder_path,self.filename,"Data")
+        info = os.path.join(self.svnzip_unzipped_folder_path,self.filename,"Info")
+        print(f'data{data}')
+        print(f'info{data}')
+        command = [
+            self.sevenzip_executable,
+            'a',
+            '-tzip',
+            '-mx9',
+            f'-p{self.pw}',
+            path_to_save_to,
+            data,
+            info
+        ]
+        try:
+            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f'{self.file_name} Successfully Rezipped')
+        except subprocess.CalledProcessError as e:
+            print(f"Error compressing file '{self.unzipped_modded_file_path}': {e}")
+
+    def write_to_file(self, file_path):
+        #Save Location
+        print(f"\nwrite_location = {file_path}")
+        file_path = os.path.join(os.path.dirname(file_path),self.filename,"Data")
         
+        try:
+            if not os.path.exists(os.path.dirname(file_path)):
+                os.makedirs(os.path.dirname(file_path))
+            
+            with open(file_path, 'w') as file:
+                for i in range(len(self.file_data)):
+                    file.writelines(self.file_data[i])
+                         
+        except Exception as e:
+            print(f"Error writing to file: {e}")
+        
+    def push_new_entity(self,template):
+        #inside template into file_data
+        for i, line in enumerate(template.split("\n")):
+            self.file_data.insert(40+i,line+"\n")
+        #pull new indicies for everything
+        self.get_indices()
+        self.pull_entity_data()
+
+class SavedMap(CustomMap):
+    def __init__(self, directory, map_name, sevenzip_executable,password_file):
+        super().__init__(self, directory, map_name, sevenzip_executable,password_file)
+
 def launch_from_gui(r01, directory, sevenzip_executable):
     app = QApplication(sys.argv)
     launched_map = Map(directory, r01, sevenzip_executable)
@@ -2168,7 +2368,10 @@ if __name__ == '__main__':
         directory = r"C:\Program Files (x86)\Steam\steamapps\common\They Are Billions"
 
     app = QApplication(sys.argv)
-    launched_map = Map(directory, r01, sevenzip_executable)
+    #launched_map = CustomMap(directory, r"C:\project_files\Scripts\CMap1.TABProject", sevenzip_executable,r"D:\Steam\steamapps\common\They Are Billions\passwords.txt")
+    launched_map = CustomMap(directory, r"C:\Users\joshu\OneDrive\Desktop\New folder (6)\Split\Split1\Split1.zxsav", sevenzip_executable,r"C:\Users\joshu\OneDrive\Desktop\New folder (6)\Split\Split1\Split1.pass")
+    #launched_map = CustomMap(directory, r"C:\Users\joshu\OneDrive\Documents\My Games\They Are Billions\CustomLevels\CMap1\CMap1.TABLevel", sevenzip_executable,r"D:\Steam\steamapps\common\They Are Billions\passwords.txt")
+    #launched_map = Map(directory, r"D:\Steam\steamapps\common\They Are Billions\ZXGame_Data\Levels\R01.dxlevel", sevenzip_executable)
     windowclass = MainWindow(launched_map, directory, sevenzip_executable)
     windowclass.show()
     sys.exit(app.exec_())

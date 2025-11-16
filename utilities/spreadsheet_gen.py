@@ -83,3 +83,8 @@ def generate_spreadhsheets(zx_rules,ws,file_type):
                 df.to_excel(writer, sheet_name=key[:31], index=False)
 
     print(f"✅ Data successfully written to {excel_path}")
+
+
+if __name__ in "__main__":
+    generate_spreadhsheets(r'D:\Steam\steamapps\common\They Are Billions\ZXRules.dat')
+    generate_spreadhsheets(r'D:\Steam\steamapps\common\They Are Billions\ZXCampaign.dat')
